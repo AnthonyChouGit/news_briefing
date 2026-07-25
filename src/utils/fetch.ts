@@ -1,0 +1,1001 @@
+/**
+ * @module NewsFetchUtility
+ * @description Provides fetching and parsing capabilities for news articles from various sources.
+ *
+ * @example
+ * ```typescript
+ * import { fetchNewsByCategory, FetchOptions } from "./utils/fetch";
+ * import { BriefNews } from "../types/brief_news.entity.js";
+ *
+ * // Fetches all AI-related news concurrently from configured sources.
+ * // You can optionally pass a FetchOptions object to override defaults:
+ * const options: FetchOptions = { 
+ *     timeout: 15000,          // Overrides DEFAULT_TIMEOUT_MS (default 30000)
+ *     maxDecodeItems: 10,      // Overrides MAX_DECODE_ITEMS for RSS sources (default 5)
+ *     userAgent: "Custom-Bot"  // Overrides the default USER_AGENT string
+ * };
+ * const aiNews: BriefNews[] = await fetchNewsByCategory("ai", options);
+ * ```
+ *
+ * ### Supported Categories
+ * The `fetchNewsByCategory` function accepts strongly-typed categories:
+ * - `"international"`
+ * - `"football"`
+ * - `"realmadrid"`
+ * - `"f1"`
+ * - `"ai"`
+ * - `"mlb"`
+ * - `"shenzhen"`
+ * - `"tabletennis"`
+ *
+ * ### Error Handling
+ * 
+ * **1. Expected Errors (Network & Parsing)**
+ * The module throws {@link FetchError} for network issues (e.g. timeouts, 403 blocks) 
+ * and {@link ParseError} for unexpected HTML/JSON structures.
+ * 
+ * *Note:* {@link fetchNewsByCategory} catches these expected errors internally on a 
+ * per-source basis. If a single source fails, it silently falls back to returning an 
+ * empty array for that source, allowing the other sources to continue processing.
+ * 
+ * **2. Unexpected Errors**
+ * Unexpected runtime errors (e.g., TypeErrors) will bubble up. The caller should 
+ * wrap the call in a standard `try/catch` to handle catastrophic failures.
+ * 
+ * When dealing with errors that propagate or if you use the individual source
+ * fetchers directly, you can handle them as follows:
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   const news = await fetchNewsByCategory("ai");
+ * } catch (error) {
+ *   if (error instanceof Error) {
+ *     console.error(error.name);    // e.g. "TypeError"
+ *     console.error(error.message); // A descriptive error message
+ *     console.error(error.cause);   // Underlying original error (e.g. from Axios), if available
+ *     console.error(error.stack);   // The stack trace
+ *   }
+ * }
+ * ```
+ */
+
+import axios, { AxiosError } from "axios";
+import { createHash } from "node:crypto";
+import { BriefNews } from "../types/brief_news.entity.js";
+
+// ─── Constants ───────────────────────────────────────────────
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+const MAX_DECODE_ITEMS = 5;
+const DROP_PARAMS = new Set([
+    "fbclid", "gclid", "cmpid", "ocid", "ref", "source",
+]);
+
+// ─── Error Classes ───────────────────────────────────────────
+
+/** Expected error for network failures (timeout, connection refused, HTTP errors). */
+export class FetchError extends Error {
+    constructor(message: string, options?: ErrorOptions) {
+        super(message, options);
+        this.name = "FetchError";
+    }
+}
+
+/** Expected error for parsing failures (unexpected HTML structure, invalid JSON). */
+export class ParseError extends Error {
+    constructor(message: string, options?: ErrorOptions) {
+        super(message, options);
+        this.name = "ParseError";
+    }
+}
+
+// ─── Types ───────────────────────────────────────────────────
+
+interface RawNewsItem {
+    title: string;
+    url: string;
+    time: string;
+    category: string;
+}
+
+export type NewsCategory = 
+    | "international" 
+    | "football" 
+    | "realmadrid" 
+    | "f1" 
+    | "ai" 
+    | "mlb" 
+    | "shenzhen" 
+    | "tabletennis";
+
+export interface FetchOptions {
+    timeout?: number;
+    maxDecodeItems?: number;
+    userAgent?: string;
+}
+
+interface DecodeResult {
+    status: "ok" | "passthrough" | "error";
+    url?: string;
+    reason?: string;
+}
+
+interface RssFeedConfig {
+    url: string;
+    category: string;
+    sourceName: string;
+}
+
+// ─── HTML Utilities ──────────────────────────────────────────
+
+const HTML_ENTITIES: Record<string, string> = {
+    amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+    nbsp: " ", mdash: "—", ndash: "–", lsquo: "\u2018", rsquo: "\u2019",
+    ldquo: "\u201C", rdquo: "\u201D", hellip: "\u2026", bull: "\u2022",
+    copy: "\u00A9", reg: "\u00AE", trade: "\u2122",
+    times: "\u00D7", divide: "\u00F7", middot: "\u00B7",
+};
+
+function htmlUnescape(s: string): string {
+    return s.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+        if (entity.startsWith("#x") || entity.startsWith("#X")) {
+            const code = parseInt(entity.slice(2), 16);
+            return isNaN(code) ? match : String.fromCodePoint(code);
+        }
+        if (entity.startsWith("#")) {
+            const code = parseInt(entity.slice(1), 10);
+            return isNaN(code) ? match : String.fromCodePoint(code);
+        }
+        return HTML_ENTITIES[entity.toLowerCase()] ?? match;
+    });
+}
+
+function stripTags(s: string): string {
+    return htmlUnescape(s.replace(/<[^>]+>/g, "").trim());
+}
+
+// ─── URL & Identity Utilities ────────────────────────────────
+
+function canonicalUrl(rawUrl: string): string {
+    const url = (rawUrl ?? "").trim();
+    if (!url) return "";
+    try {
+        const parsed = new URL(url.includes("://") ? url : `https://${url}`);
+        let host = parsed.hostname.toLowerCase();
+        if (host.startsWith("www.")) host = host.slice(4);
+        const path = parsed.pathname.replace(/\/+$/, "") || "/";
+        const filteredParams: Array<[string, string]> = [];
+        parsed.searchParams.forEach((v, k) => {
+            const kl = k.toLowerCase();
+            if (!kl.startsWith("utm_") && !DROP_PARAMS.has(kl)) {
+                filteredParams.push([k, v]);
+            }
+        });
+        filteredParams.sort(([a], [b]) => a.localeCompare(b));
+        const query = new URLSearchParams(filteredParams).toString();
+        const scheme = parsed.protocol.replace(":", "");
+        return `${scheme}://${host}${path}${query ? "?" + query : ""}`;
+    } catch {
+        return url;
+    }
+}
+
+function generateHashId(url: string, sourceName: string, title: string): string {
+    const input = url ? canonicalUrl(url) : `${sourceName}:${title}`;
+    return createHash("sha256").update(input).digest("hex");
+}
+
+/** Validate that a URL is a plausible article URL (not a homepage, search, or Google News wrapper). */
+function isArticleUrl(url: string): boolean {
+    if (!url.trim()) return false;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+        if (!parsed.hostname) return false;
+        if (parsed.hostname.includes("news.google.com")) return false;
+        const path = parsed.pathname.replace(/\/+$/, "") || "/";
+        const homePaths = new Set([
+            "", "/", "/news", "/world", "/sport", "/latest",
+            "/en/latest.html", "/category/artificial-intelligence/",
+        ]);
+        if (homePaths.has(path)) return false;
+        const lowerPath = path.toLowerCase();
+        if (["/search", "/tag/", "/category/", "/topics/"].some(x => lowerPath.includes(x))) return false;
+        return path.split("/").length >= 2;
+    } catch {
+        return false;
+    }
+}
+
+// ─── Date Parsing ────────────────────────────────────────────
+
+function parseSourceDate(dateStr: string): Date {
+    if (!dateStr.trim()) return new Date();
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+// ─── BriefNews Factory ──────────────────────────────────────
+
+function toBriefNews(item: RawNewsItem, sourceName: string): BriefNews {
+    const news = new BriefNews();
+    news.hash_id = generateHashId(item.url, sourceName, item.title);
+    news.url = item.url;
+    news.title = item.title;
+    news.source_date = parseSourceDate(item.time);
+    news.source_name = sourceName;
+    news.category = item.category;
+    // bullets, raw, created_at intentionally left unset
+    return news;
+}
+
+// ─── HTTP Utilities ──────────────────────────────────────────
+
+async function fetchText(url: string, options?: FetchOptions): Promise<string> {
+    try {
+        const response = await axios.get<string>(url, {
+            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+            headers: {
+                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+            },
+            responseType: "text",
+            validateStatus: (status) => status === 200,
+            maxRedirects: 5,
+        });
+        return response.data;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            throw new FetchError(
+                `Failed to fetch ${url}: ${error.message}`,
+                { cause: error },
+            );
+        }
+        throw error;
+    }
+}
+
+async function fetchJson(url: string, options?: FetchOptions): Promise<unknown> {
+    try {
+        const response = await axios.get(url, {
+            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+            headers: { "User-Agent": options?.userAgent ?? USER_AGENT },
+            validateStatus: (status) => status === 200,
+        });
+        return response.data;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            throw new FetchError(
+                `Failed to fetch JSON from ${url}: ${error.message}`,
+                { cause: error },
+            );
+        }
+        throw error;
+    }
+}
+
+// ─── Google News URL Decoder ─────────────────────────────────
+
+function articleToken(url: string): string | null {
+    try {
+        const parsed = new URL(url);
+        if (parsed.hostname !== "news.google.com") return null;
+        const parts = parsed.pathname.split("/").filter(Boolean);
+        if (parts.length < 2) return null;
+        const secondLast = parts[parts.length - 2];
+        if (secondLast !== "articles" && secondLast !== "read") return null;
+        const token = parts[parts.length - 1];
+        return token && token.length <= 4096 ? token : null;
+    } catch {
+        return null;
+    }
+}
+
+function isValidPublisherUrl(url: string): boolean {
+    if (typeof url !== "string" || url.length > 8192 || /[\x00-\x1f]/.test(url)) return false;
+    try {
+        const parsed = new URL(url);
+        return (
+            (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+            !!parsed.hostname &&
+            parsed.hostname !== "news.google.com" &&
+            !parsed.hostname.endsWith(".news.google.com") &&
+            !parsed.username
+        );
+    } catch {
+        return false;
+    }
+}
+
+function* walkArrays(value: unknown): Generator<unknown[]> {
+    if (Array.isArray(value)) {
+        yield value;
+        for (const child of value) {
+            yield* walkArrays(child);
+        }
+    }
+}
+
+async function decodeGoogleNewsParams(
+    token: string,
+    options?: FetchOptions,
+): Promise<{ timestamp: string; signature: string }> {
+    const paths = ["rss/articles", "articles"];
+    const errors: string[] = [];
+    for (const path of paths) {
+        try {
+            const html = await fetchText(
+                `https://news.google.com/${path}/${token}`,
+                options,
+            );
+            const tsMatch = html.match(/data-n-a-ts="(\d+)"/);
+            const sgMatch = html.match(/data-n-a-sg="([^"]+)"/);
+            if (tsMatch?.[1] && sgMatch?.[1]) {
+                return { timestamp: tsMatch[1], signature: sgMatch[1] };
+            }
+            errors.push("missing_params");
+        } catch (error) {
+            errors.push(error instanceof Error ? error.constructor.name : "UnknownError");
+        }
+    }
+    throw new FetchError(`decode_params_failed: ${errors.join(",")}`);
+}
+
+async function decodeOneGoogleNewsUrl(
+    token: string,
+    timestamp: string,
+    signature: string,
+    options?: FetchOptions,
+): Promise<string> {
+    const inner = JSON.stringify([
+        "garturlreq",
+        [
+            ["X", "X", ["X", "X"], null, null, 1, 1, "US:en", null, 1,
+                null, null, null, null, null, 0, 1],
+            "X", "X", 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0,
+        ],
+        token, parseInt(timestamp, 10), signature,
+    ]);
+    const payload = JSON.stringify([[["Fbv4je", inner, null, "req0"]]]);
+    const formData = `f.req=${encodeURIComponent(payload)}`;
+
+    let body: string;
+    try {
+        const response = await axios.post(
+            "https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je",
+            formData,
+            {
+                timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                    "User-Agent": options?.userAgent ?? USER_AGENT,
+                    "Referer": "https://news.google.com/",
+                },
+                responseType: "text",
+                validateStatus: (status) => status === 200,
+            },
+        );
+        body = response.data as string;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            throw new FetchError(`Google News decode POST failed: ${error.message}`, { cause: error });
+        }
+        throw error;
+    }
+
+    for (const line of body.split("\n")) {
+        let frame: unknown;
+        try {
+            frame = JSON.parse(line);
+        } catch {
+            continue;
+        }
+        for (const node of walkArrays(frame)) {
+            if (node.length >= 3 && node[0] === "wrb.fr" && node[1] === "Fbv4je") {
+                let nested: unknown;
+                try {
+                    nested = JSON.parse(node[2] as string);
+                } catch {
+                    continue;
+                }
+                if (
+                    Array.isArray(nested) &&
+                    nested.length > 1 &&
+                    nested[0] === "garturlres"
+                ) {
+                    const url = nested[1] as string;
+                    if (isValidPublisherUrl(url)) {
+                        return url;
+                    }
+                }
+            }
+        }
+    }
+    throw new FetchError("decode_response_invalid");
+}
+
+async function resolveGoogleNewsUrls(
+    urls: string[],
+    options?: FetchOptions,
+): Promise<DecodeResult[]> {
+    const resolveOne = async (url: string): Promise<DecodeResult> => {
+        const token = articleToken(url);
+        if (token === null) {
+            return { status: "passthrough", url };
+        }
+        try {
+            const { timestamp, signature } = await decodeGoogleNewsParams(token, options);
+            const resolved = await decodeOneGoogleNewsUrl(token, timestamp, signature, options);
+            return { status: "ok", url: resolved };
+        } catch {
+            return { status: "error", reason: "decode_failed" };
+        }
+    };
+
+    const settled = await Promise.allSettled(urls.map((u) => resolveOne(u)));
+    return settled.map((result) =>
+        result.status === "fulfilled"
+            ? result.value
+            : { status: "error" as const, reason: "unexpected_error" },
+    );
+}
+
+// ─── Source Extractors ───────────────────────────────────────
+
+function extractBbc(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seenUrls = new Set<string>();
+    const pattern = /<h2[^>]*data-testid="card-headline"[^>]*>(.*?)<\/h2>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const title = stripTags(m[1] ?? "");
+        if (!title || title.length < 10) continue;
+        const pos = m.index ?? 0;
+        const before = html.slice(Math.max(0, pos - 5000), pos);
+        let aLinks = [...before.matchAll(/<a[^>]*href="(\/news\/(?:articles|videos)\/[^"]+)"/g)];
+        if (aLinks.length === 0) {
+            const after = html.slice(pos, pos + 2000);
+            aLinks = [...after.matchAll(/<a[^>]*href="(\/news\/(?:articles|videos)\/[^"]+)"/g)];
+        }
+        const lastLink = aLinks[aLinks.length - 1];
+        const url = lastLink?.[1] ? `https://www.bbc.com${lastLink[1]}` : "";
+        if (url && seenUrls.has(url)) continue;
+        if (url) seenUrls.add(url);
+        results.push({ title, url, time: "", category: "international" });
+    }
+    return results;
+}
+
+function extractBbcSport(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seen = new Set<string>();
+    const pattern = /href="(\/sport\/[^"]+\/articles\/[^"]+)"[^>]*>(.*?)<\/a>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const urlPath = m[1] ?? "";
+        const title = stripTags(m[2] ?? "");
+        if (!title || title.length < 10 || seen.has(urlPath)) continue;
+        seen.add(urlPath);
+        const cat = urlPath.includes("football")
+            ? "football"
+            : urlPath.includes("formula1")
+                ? "f1"
+                : "international";
+        results.push({
+            title,
+            url: `https://www.bbc.com${urlPath}`,
+            time: "",
+            category: cat,
+        });
+    }
+    return results;
+}
+
+function extractCnn(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seenUrls = new Set<string>();
+    const pattern = /class="[^"]*container__headline[^"]*"[^>]*>(.*?)<\/span>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const title = stripTags(m[1] ?? "");
+        if (!title || title.length < 20) continue;
+        if (title.startsWith(".") || title.startsWith("{") || title.startsWith("@") ||
+            title.startsWith("function") || title.startsWith("var ") || title.startsWith("const ")) continue;
+        if (title.includes("{") || title.includes("padding") || title.includes("margin")) continue;
+        const pos = m.index ?? 0;
+        const before = html.slice(Math.max(0, pos - 3000), pos);
+        const allLinks = [...before.matchAll(/<a[^>]*href="(\/20\d{2}\/\d{2}\/\d{2}\/[^"]+)"/g)];
+        const filtered = allLinks.filter((g) => !g[1]?.includes("/live-news/"));
+        const lastLink = filtered[filtered.length - 1];
+        const path = lastLink?.[1] ?? "";
+        const fullUrl = path ? `https://edition.cnn.com${path}` : "";
+        if (fullUrl && seenUrls.has(fullUrl)) continue;
+        if (fullUrl) seenUrls.add(fullUrl);
+        results.push({ title, url: fullUrl, time: "", category: "international" });
+    }
+    return results.slice(0, 50);
+}
+
+function extractMarca(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seen = new Set<string>();
+
+    // Timeline section: <li> with <a href>, <time datetime>, <span> title
+    const timelinePattern =
+        /<li class="ue-c-widget-news__list-item">\s*<a[^>]*href="([^"]+)"[^>]*>\s*<time datetime="([^"]+)"[^>]*>[^<]*<\/time>\s*<span>(.*?)<\/span>/gs;
+    for (const m of html.matchAll(timelinePattern)) {
+        const url = m[1] ?? "";
+        const dt = m[2] ?? "";
+        const title = stripTags(m[3] ?? "");
+        if (!title || title.length < 10 || seen.has(url)) continue;
+        seen.add(url);
+        results.push({ title, url, time: dt, category: "realmadrid" });
+    }
+
+    // Article cards: <h2> with backward <a href> search
+    const h2Pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
+    for (const m of html.matchAll(h2Pattern)) {
+        const title = stripTags(m[1] ?? "");
+        if (!title || title.length < 15 || seen.has(title)) continue;
+        const pos = m.index ?? 0;
+        const before = html.slice(Math.max(0, pos - 2000), pos);
+        const aLinks = [...before.matchAll(/href="(https:\/\/www\.marca\.com\/[^"]+)"/g)];
+        const lastLink = aLinks[aLinks.length - 1];
+        const url = lastLink?.[1] ?? "";
+        if (seen.has(url)) continue;
+        seen.add(url);
+        seen.add(title);
+        results.push({ title, url, time: "", category: "realmadrid" });
+    }
+    return results;
+}
+
+function extractF1(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const pattern = /href="(\/en\/latest\/article\/[^"]+)"[^>]*>(.*?)<\/a>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const urlPath = m[1] ?? "";
+        const title = stripTags(m[2] ?? "");
+        if (title && title.length > 10) {
+            results.push({
+                title,
+                url: `https://www.formula1.com${urlPath}`,
+                time: "",
+                category: "f1",
+            });
+        }
+    }
+    return results;
+}
+
+function extractTechcrunch(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seen = new Set<string>();
+    const pattern = /href="(https:\/\/techcrunch\.com\/20\d{2}\/\d{2}\/\d{2}\/[^"]+)"[^>]*>(.*?)<\/a>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const url = m[1] ?? "";
+        const title = stripTags(m[2] ?? "");
+        if (!title || title.length < 10 || seen.has(url)) continue;
+        seen.add(url);
+        // Search forward for nearest <time datetime> (~500 chars)
+        const afterStart = (m.index ?? 0) + m[0].length;
+        const after = html.slice(afterStart, afterStart + 500);
+        const timeMatch = after.match(/<time[^>]*datetime="([^"]+)"/);
+        results.push({
+            title,
+            url,
+            time: timeMatch?.[1] ?? "",
+            category: "ai",
+        });
+    }
+    return results;
+}
+
+function extractEspnScores(data: unknown): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    if (typeof data !== "object" || data === null) return results;
+    const events = (data as Record<string, unknown>)["events"];
+    if (!Array.isArray(events)) return results;
+
+    for (const event of events) {
+        if (typeof event !== "object" || event === null) continue;
+        const competitions = (event as Record<string, unknown>)["competitions"];
+        if (!Array.isArray(competitions)) continue;
+
+        for (const comp of competitions) {
+            if (typeof comp !== "object" || comp === null) continue;
+            const compObj = comp as Record<string, unknown>;
+            const statusObj = compObj["status"] as Record<string, unknown> | undefined;
+            const statusType = statusObj?.["type"] as Record<string, unknown> | undefined;
+            const status = (statusType?.["description"] as string) ?? "";
+
+            const competitors = compObj["competitors"];
+            if (!Array.isArray(competitors) || competitors.length < 2) continue;
+            const home = competitors[0] as Record<string, unknown>;
+            const away = competitors[1] as Record<string, unknown>;
+
+            const hTeam = home?.["team"] as Record<string, unknown> | undefined;
+            const aTeam = away?.["team"] as Record<string, unknown> | undefined;
+            const hname = (hTeam?.["displayName"] as string) ?? "?";
+            const aname = (aTeam?.["displayName"] as string) ?? "?";
+            const hs = (home?.["score"] as string) ?? "0";
+            const aws = (away?.["score"] as string) ?? "0";
+
+            if (hname.includes("Dodgers") || aname.includes("Dodgers")) {
+                results.push({
+                    title: `${aname} ${aws} @ ${hname} ${hs}`,
+                    url: "",
+                    time: status,
+                    category: "mlb",
+                });
+            }
+        }
+    }
+    return results;
+}
+
+function extractThepaper(html: string): RawNewsItem[] {
+    // Build contId → pubTime map from embedded JSON data
+    const timeMap = new Map<string, string>();
+    const timePattern = /"contId":"?(\d+)"?[^}]{0,800}"pubTime":"([^"]*?)"/g;
+    for (const pm of html.matchAll(timePattern)) {
+        timeMap.set(pm[1] ?? "", pm[2] ?? "");
+    }
+
+    const results: RawNewsItem[] = [];
+    const seenUrls = new Set<string>();
+    const h2Pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
+    const skipTitles = new Set(["推荐", "热榜", "视频", "专题", "广告"]);
+
+    for (const m of html.matchAll(h2Pattern)) {
+        const title = stripTags(m[1] ?? "");
+        if (!title || title.length < 10 || title.length > 200) continue;
+        if (skipTitles.has(title)) continue;
+
+        const pos = m.index ?? 0;
+        const before = html.slice(Math.max(0, pos - 3000), pos);
+        const aLinks = [...before.matchAll(/<a[^>]*href="(\/newsDetail_forward_(\d+))"/g)];
+        if (aLinks.length === 0) continue;
+
+        const lastLink = aLinks[aLinks.length - 1]!;
+        const url = `https://www.thepaper.cn${lastLink[1]}`;
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+
+        const contId = lastLink[2] ?? "";
+        results.push({
+            title,
+            url,
+            time: timeMap.get(contId) ?? "",
+            category: "shenzhen",
+        });
+    }
+    return results.slice(0, 30);
+}
+
+function extractNfnews(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const seenUrls = new Set<string>();
+    const pattern = /class="[^"]*title[^"]*"[^>]*>\s*(.{15,200}?)\s*<\//gs;
+
+    for (const m of html.matchAll(pattern)) {
+        let title = stripTags(m[1] ?? "");
+        title = title.replace(/\s+(南方\+|南方\S*周刊|南方周末)\s*$/, "").trim();
+        title = title.replace(/\s+\d{2}:\d{2}\s*$/, "").trim();
+        if (!title || title.length < 10) continue;
+
+        const pos = m.index ?? 0;
+        const before = html.slice(Math.max(0, pos - 3000), pos);
+        const aLinks = [
+            ...before.matchAll(
+                /<a[^>]*href="((?:https?:\/\/static\.nfnews\.com\/content\/|\/content\/)[^"]+)"/g,
+            ),
+        ];
+        if (aLinks.length === 0) continue;
+
+        const lastLink = aLinks[aLinks.length - 1]!;
+        const rawHref = lastLink[1] ?? "";
+        const url = rawHref.startsWith("http")
+            ? rawHref
+            : `https://www.nfnews.com${rawHref}`;
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+        results.push({ title, url, time: "", category: "shenzhen" });
+    }
+    return results.slice(0, 30);
+}
+
+function extractRacefans(html: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
+    for (const m of html.matchAll(pattern)) {
+        const title = stripTags(m[1] ?? "");
+        if (title && title.length > 10 && !title.toLowerCase().includes("caption")) {
+            results.push({ title, url: "", time: "", category: "f1" });
+        }
+    }
+    return results;
+}
+
+function extractRss(xml: string): RawNewsItem[] {
+    const results: RawNewsItem[] = [];
+    const itemPattern = /<item>(.*?)<\/item>/gs;
+    for (const m of xml.matchAll(itemPattern)) {
+        const item = m[1] ?? "";
+        const titleMatch = item.match(/<title>(.*?)<\/title>/s);
+        const linkMatch = item.match(/<link>(.*?)<\/link>/s);
+        const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/s);
+
+        if (!titleMatch?.[1]) continue;
+        let title = titleMatch[1].trim();
+        title = title.replace(/^<!\[CDATA\[(.*?)\]\]>$/s, "$1");
+        title = htmlUnescape(title);
+        if (!title || title.length <= 5) continue;
+
+        results.push({
+            title,
+            url: linkMatch?.[1]?.trim() ?? "",
+            time: pubDateMatch?.[1]?.trim() ?? "",
+            category: "international", // Default; overridden by feed config
+        });
+    }
+    return results;
+}
+
+// ─── Source Fetchers ─────────────────────────────────────────
+
+async function fetchAndExtractHtml(
+    url: string,
+    sourceName: string,
+    extractor: (html: string) => RawNewsItem[],
+    options?: FetchOptions,
+): Promise<BriefNews[]> {
+    try {
+        const html = await fetchText(url, options);
+        return extractor(html).map((item) => toBriefNews(item, sourceName));
+    } catch (error) {
+        if (error instanceof FetchError) return [];
+        throw error;
+    }
+}
+
+export async function fetchBbc(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://www.bbc.com/news", "BBC", extractBbc, options);
+}
+
+export async function fetchBbcSport(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://www.bbc.com/sport", "BBC Sport", extractBbcSport, options);
+}
+
+export async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://edition.cnn.com/world", "CNN", extractCnn, options);
+}
+
+export async function fetchCnnSport(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://edition.cnn.com/sport", "CNN", extractCnn, options);
+}
+
+export async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml(
+        "https://www.marca.com/en/football/real-madrid.html",
+        "Marca",
+        extractMarca,
+        options,
+    );
+}
+
+export async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml(
+        "https://www.formula1.com/en/latest.html",
+        "Formula 1",
+        extractF1,
+        options,
+    );
+}
+
+export async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml(
+        "https://techcrunch.com/category/artificial-intelligence/",
+        "TechCrunch",
+        extractTechcrunch,
+        options,
+    );
+}
+
+export async function fetchEspnScores(options?: FetchOptions): Promise<BriefNews[]> {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const url = `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${today}`;
+    try {
+        const data = await fetchJson(url, options);
+        return extractEspnScores(data).map((item) => toBriefNews(item, "ESPN"));
+    } catch (error) {
+        if (error instanceof FetchError || error instanceof SyntaxError) return [];
+        throw error;
+    }
+}
+
+export async function fetchThepaper(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://www.thepaper.cn", "澎湃新闻", extractThepaper, options);
+}
+
+export async function fetchNfnews(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://www.nfnews.com", "南方都市报", extractNfnews, options);
+}
+
+export async function fetchRacefans(options?: FetchOptions): Promise<BriefNews[]> {
+    return fetchAndExtractHtml("https://www.racefans.net", "RaceFans", extractRacefans, options);
+}
+
+// ─── RSS Feed Configuration ─────────────────────────────────
+
+const RSS_FEEDS: Record<string, RssFeedConfig> = {
+    gn_international: {
+        url: "https://news.google.com/rss/search?q=international+news&hl=en-US&gl=US&ceid=US:en",
+        category: "international",
+        sourceName: "Google News",
+    },
+    gn_realmadrid: {
+        url: "https://news.google.com/rss/search?q=Real+Madrid+latest&hl=en-US&gl=US&ceid=US:en",
+        category: "realmadrid",
+        sourceName: "Google News",
+    },
+    gn_f1: {
+        url: "https://news.google.com/rss/search?q=Formula+1+Ferrari+Leclerc&hl=en-US&gl=US&ceid=US:en",
+        category: "f1",
+        sourceName: "Google News",
+    },
+    gn_mlb: {
+        url: "https://news.google.com/rss/search?q=MLB+Dodgers&hl=en-US&gl=US&ceid=US:en",
+        category: "mlb",
+        sourceName: "Google News",
+    },
+    gn_ai: {
+        url: "https://news.google.com/rss/search?q=AI+large+language+model&hl=en-US&gl=US&ceid=US:en",
+        category: "ai",
+        sourceName: "Google News",
+    },
+    gn_shenzhen: {
+        url: "https://news.google.com/rss/search?q=Shenzhen+Guangdong+news&hl=en-US&gl=US&ceid=US:en",
+        category: "shenzhen",
+        sourceName: "Google News",
+    },
+    gn_worldcup: {
+        url: "https://news.google.com/rss/search?q=World+Cup+2026&hl=en-US&gl=US&ceid=US:en",
+        category: "football",
+        sourceName: "Google News",
+    },
+    gn_wtt: {
+        url: "https://news.google.com/rss/search?q=WTT+table+tennis&hl=en-US&gl=US&ceid=US:en",
+        category: "tabletennis",
+        sourceName: "Google News",
+    },
+    gn_ttcn: {
+        url: "https://news.google.com/rss/search?q=China+table+tennis&hl=en-US&gl=US&ceid=US:en",
+        category: "tabletennis",
+        sourceName: "Google News",
+    },
+    motorsport: {
+        url: "https://www.motorsport.com/rss/f1/news/",
+        category: "f1",
+        sourceName: "Motorsport.com",
+    },
+};
+
+export async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<BriefNews[]> {
+    const config = RSS_FEEDS[feedKey];
+    if (!config) throw new Error(`Unknown RSS feed: ${feedKey}`);
+
+    try {
+        const xml = await fetchText(config.url, options);
+        const rawItems = extractRss(xml);
+        // Override category from feed config
+        for (const item of rawItems) {
+            item.category = config.category;
+        }
+
+        // Collect URLs to resolve (limit to MAX_DECODE_ITEMS)
+        const limit = options?.maxDecodeItems ?? MAX_DECODE_ITEMS;
+        const urlsToResolve = rawItems.slice(0, limit).map((item) => item.url);
+        const resolved = await resolveGoogleNewsUrls(urlsToResolve, options);
+
+        const results: BriefNews[] = [];
+        for (let i = 0; i < rawItems.length; i++) {
+            const item = rawItems[i]!;
+            if (i < resolved.length) {
+                const result = resolved[i]!;
+                if (result.status === "ok" && result.url) {
+                    item.url = result.url;
+                } else if (result.status === "error") {
+                    continue; // Skip items with failed Google News URL resolution
+                }
+                // "passthrough": keep original URL (already a direct link)
+            } else {
+                // Beyond resolution limit — skip if it's a Google News wrapper
+                if (articleToken(item.url) !== null) continue;
+            }
+
+            // Validate that the final URL is a plausible article URL (skip if not)
+            if (item.url && !isArticleUrl(item.url)) continue;
+
+            results.push(toBriefNews(item, config.sourceName));
+        }
+        return results;
+    } catch (error) {
+        if (error instanceof FetchError) return [];
+        throw error;
+    }
+}
+
+// ─── Category Mapping & Unified Entry ────────────────────────
+
+type SourceFetcher = (options?: FetchOptions) => Promise<BriefNews[]>;
+
+const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
+    international: [
+        fetchBbc,
+        fetchCnnWorld,
+        fetchCnnSport,
+        (opts) => fetchRssFeed("gn_international", opts),
+    ],
+    football: [
+        fetchBbcSport,
+        (opts) => fetchRssFeed("gn_worldcup", opts),
+    ],
+    realmadrid: [
+        fetchMarca,
+        (opts) => fetchRssFeed("gn_realmadrid", opts),
+    ],
+    f1: [
+        fetchF1,
+        fetchRacefans,
+        fetchBbcSport,
+        (opts) => fetchRssFeed("gn_f1", opts),
+        (opts) => fetchRssFeed("motorsport", opts),
+    ],
+    ai: [
+        fetchTechcrunch,
+        (opts) => fetchRssFeed("gn_ai", opts),
+    ],
+    mlb: [
+        fetchEspnScores,
+        (opts) => fetchRssFeed("gn_mlb", opts),
+    ],
+    shenzhen: [
+        fetchThepaper,
+        fetchNfnews,
+        (opts) => fetchRssFeed("gn_shenzhen", opts),
+    ],
+    tabletennis: [
+        (opts) => fetchRssFeed("gn_wtt", opts),
+        (opts) => fetchRssFeed("gn_ttcn", opts),
+    ],
+};
+
+/**
+ * Fetch all news for a given category from every related source.
+ * Sources run concurrently. Expected errors per source yield empty results
+ * without affecting other sources. Results are deduplicated by canonical URL.
+ */
+export async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<BriefNews[]> {
+    const sources = CATEGORY_SOURCES[category];
+    if (!sources) return [];
+
+    const settled = await Promise.allSettled(sources.map((fn) => fn(options)));
+    const allNews: BriefNews[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const result of settled) {
+        if (result.status !== "fulfilled") continue;
+        for (const news of result.value) {
+            // Filter by requested category (some sources return mixed categories)
+            if (news.category !== category) continue;
+            const canonical = canonicalUrl(news.url);
+            if (canonical && seenUrls.has(canonical)) continue;
+            if (canonical) seenUrls.add(canonical);
+            allNews.push(news);
+        }
+    }
+    return allNews;
+}
