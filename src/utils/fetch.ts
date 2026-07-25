@@ -100,6 +100,7 @@ interface RawNewsItem {
     url: string;
     time: string;
     category: string;
+    raw?: string;
 }
 
 export type NewsCategory = 
@@ -229,7 +230,8 @@ function toBriefNews(item: RawNewsItem, sourceName: string): BriefNews {
     news.source_date = parseSourceDate(item.time);
     news.source_name = sourceName;
     news.category = item.category;
-    // bullets, raw, created_at intentionally left unset
+    if (item.raw) news.raw = item.raw;
+    // bullets, created_at intentionally left unset
     return news;
 }
 
@@ -709,12 +711,20 @@ function extractNfnews(html: string): RawNewsItem[] {
 
 function extractRacefans(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
+    const seen = new Set<string>();
+    // RaceFans wraps article links inside <h2> tags: <h2><a href="...">Title</a></h2>
     const pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
     for (const m of html.matchAll(pattern)) {
-        const title = stripTags(m[1] ?? "");
-        if (title && title.length > 10 && !title.toLowerCase().includes("caption")) {
-            results.push({ title, url: "", time: "", category: "f1" });
-        }
+        const inner = m[1] ?? "";
+        const title = stripTags(inner);
+        if (!title || title.length < 10 || title.toLowerCase().includes("caption")) continue;
+        // Extract URL from <a> inside the <h2>
+        const linkMatch = inner.match(/<a[^>]*href="(https?:\/\/www\.racefans\.net\/\d{4}\/\d{2}\/\d{2}\/[^"]+)"/)
+            ?? inner.match(/<a[^>]*href="(https?:\/\/[^"]+)"/);
+        const url = linkMatch?.[1] ?? "";
+        if (url && seen.has(url)) continue;
+        if (url) seen.add(url);
+        results.push({ title, url, time: "", category: "f1" });
     }
     return results;
 }
@@ -727,6 +737,7 @@ function extractRss(xml: string): RawNewsItem[] {
         const titleMatch = item.match(/<title>(.*?)<\/title>/s);
         const linkMatch = item.match(/<link>(.*?)<\/link>/s);
         const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/s);
+        const descMatch = item.match(/<description>(.*?)<\/description>/s);
 
         if (!titleMatch?.[1]) continue;
         let title = titleMatch[1].trim();
@@ -734,12 +745,28 @@ function extractRss(xml: string): RawNewsItem[] {
         title = htmlUnescape(title);
         if (!title || title.length <= 5) continue;
 
-        results.push({
+        // Extract description text — used as pre-populated `raw` for sources
+        // whose article pages are inaccessible (e.g. Motorsport.com: CloudFront 403).
+        let raw: string | undefined;
+        if (descMatch?.[1]) {
+            let desc = descMatch[1].trim();
+            desc = desc.replace(/^<!\[CDATA\[(.*?)\]\]>$/s, "$1");
+            // Strip trailing "Keep reading" link and HTML tags
+            desc = desc.replace(/<a[^>]*class=['"]more['"][^>]*>.*?<\/a>/gi, "");
+            desc = stripTags(desc).trim();
+            if (desc.length > 40) raw = desc;
+        }
+
+        const resultItem: RawNewsItem = {
             title,
             url: linkMatch?.[1]?.trim() ?? "",
             time: pubDateMatch?.[1]?.trim() ?? "",
             category: "international", // Default; overridden by feed config
-        });
+        };
+        if (raw) {
+            resultItem.raw = raw;
+        }
+        results.push(resultItem);
     }
     return results;
 }
@@ -959,7 +986,6 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
         (opts) => fetchRssFeed("gn_ai", opts),
     ],
     mlb: [
-        fetchEspnScores,
         (opts) => fetchRssFeed("gn_mlb", opts),
     ],
     shenzhen: [
@@ -980,14 +1006,19 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
  */
 export async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<BriefNews[]> {
     const sources = CATEGORY_SOURCES[category];
-    if (!sources) return [];
+    if (!sources) {
+        throw new TypeError(`Invalid or unsupported category: ${category}`);
+    }
 
     const settled = await Promise.allSettled(sources.map((fn) => fn(options)));
     const allNews: BriefNews[] = [];
     const seenUrls = new Set<string>();
 
     for (const result of settled) {
-        if (result.status !== "fulfilled") continue;
+        if (result.status === "rejected") {
+            // Bubble up unexpected internal errors
+            throw result.reason;
+        }
         for (const news of result.value) {
             // Filter by requested category (some sources return mixed categories)
             if (news.category !== category) continue;

@@ -1,6 +1,5 @@
 import { Entity, Column, CreateDateColumn, PrimaryColumn } from "typeorm";
 import { IsNotEmpty, ArrayMinSize, ArrayMaxSize, IsUrl, IsString, IsOptional, IsDate, IsArray } from "class-validator";
-import { text } from "node:stream/consumers";
 
 @Entity("brief_news")
 export class BriefNews {
