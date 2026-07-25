@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { type AIClient } from "../types/ai_client.interface.js";
 
-class OpenAIClient implements AIClient {
+export class OpenAIClient implements AIClient {
 
     private readonly model: string;
     private readonly client: OpenAI;
