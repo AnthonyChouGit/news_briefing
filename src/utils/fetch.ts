@@ -14,7 +14,7 @@
  *     maxDecodeItems: 10,      // Overrides MAX_DECODE_ITEMS for RSS sources (default 5)
  *     userAgent: "Custom-Bot"  // Overrides the default USER_AGENT string
  * };
- * const aiNews: BriefNews[] = await fetchNewsByCategory("ai", options);
+ * const aiNews: Map<string, BriefNews> = await fetchNewsByCategory("ai", options);
  * ```
  *
  * ### Supported Categories
@@ -1004,14 +1004,14 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
  * Sources run concurrently. Expected errors per source yield empty results
  * without affecting other sources. Results are deduplicated by canonical URL.
  */
-export async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<BriefNews[]> {
+export async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<Map<string, BriefNews>> {
     const sources = CATEGORY_SOURCES[category];
     if (!sources) {
         throw new TypeError(`Invalid or unsupported category: ${category}`);
     }
 
     const settled = await Promise.allSettled(sources.map((fn) => fn(options)));
-    const allNews: BriefNews[] = [];
+    const allNews = new Map<string, BriefNews>();
     const seenUrls = new Set<string>();
 
     for (const result of settled) {
@@ -1025,7 +1025,7 @@ export async function fetchNewsByCategory(category: NewsCategory, options: Fetch
             const canonical = canonicalUrl(news.url);
             if (canonical && seenUrls.has(canonical)) continue;
             if (canonical) seenUrls.add(canonical);
-            allNews.push(news);
+            allNews.set(news.hash_id, news);
         }
     }
     return allNews;

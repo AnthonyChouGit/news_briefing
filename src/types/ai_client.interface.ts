@@ -1,5 +1,6 @@
+import { type ZodType } from "zod";
 
 export interface AIClient {
-    ask(prompt: string): Promise<string>;
+    ask<T extends ZodType>(prompt: string, response_schema?: T): Promise<string>;
     clearContext(): void;
 }

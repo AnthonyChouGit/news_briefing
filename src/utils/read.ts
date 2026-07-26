@@ -9,7 +9,7 @@
  * import { readNewsDetails, ReadOptions } from "./utils/read";
  * import { BriefNews } from "../types/brief_news.entity.js";
  *
- * const items: BriefNews[] = await fetchNewsByCategory("international");
+ * const items: Map<string, BriefNews> = await fetchNewsByCategory("international");
  *
  * // Populate the `raw` field on each item (mutates in-place, returns same ref)
  * await readNewsDetails(items);
@@ -36,7 +36,7 @@
  * continues with the next item.
  *
  * **2. Unexpected Errors (Invalid Input)**
- * Calling with a non-array or empty array throws a `TypeError` immediately.
+ * Calling with a non-map or empty map throws a `TypeError` immediately.
  */
 
 import axios from "axios";
@@ -391,29 +391,29 @@ async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
  * invalid URL, browser-only source, API-only source) are silently skipped
  * with `raw` left as `undefined`.
  *
- * @param items - Array of BriefNews items produced by fetchNewsByCategory.
- *                Must be a non-empty array; otherwise a TypeError is thrown.
+ * @param items - Map of BriefNews items produced by fetchNewsByCategory.
+ *                Must be a non-empty Map; otherwise a TypeError is thrown.
  * @param options - Optional overrides for timeout, concurrency, etc.
- * @returns The same `items` array, with `raw` populated where extraction succeeded.
+ * @returns The same `items` Map, with `raw` populated where extraction succeeded.
  *
- * @throws {TypeError} If `items` is not an array or is empty.
+ * @throws {TypeError} If `items` is not a Map or is empty.
  */
 export async function readNewsDetails(
-    items: BriefNews[],
+    items: Map<string, BriefNews>,
     options?: ReadOptions,
-): Promise<BriefNews[]> {
-    if (!Array.isArray(items)) {
-        throw new TypeError("readNewsDetails: expected an array of BriefNews items");
+): Promise<Map<string, BriefNews>> {
+    if (!(items instanceof Map)) {
+        throw new TypeError("readNewsDetails: expected a Map of BriefNews items");
     }
-    if (items.length === 0) {
-        throw new TypeError("readNewsDetails: input array must not be empty");
+    if (items.size === 0) {
+        throw new TypeError("readNewsDetails: input map must not be empty");
     }
 
     const maxBody = options?.maxBodyChars ?? MAX_BODY_CHARS;
     const concurrencyLimit = options?.concurrency ?? CONCURRENCY;
     const sem = createSemaphore(concurrencyLimit);
 
-    const tasks = items.map(async (item) => {
+    const tasks = Array.from(items.values()).map(async (item) => {
         const extractor = getExtractorForItem(item);
         if (!extractor) return;
 

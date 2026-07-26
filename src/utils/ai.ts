@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { type AIClient } from "../types/ai_client.interface.js";
+import { zodResponseFormat } from "openai/helpers/zod";
+import { type ZodType } from "zod";
 
 export class OpenAIClient implements AIClient {
 
@@ -20,17 +22,19 @@ export class OpenAIClient implements AIClient {
         this.clearContext();
     }
 
-    public async ask(prompt: string): Promise<string> {
+    public async ask<T extends ZodType>(prompt: string, response_schema?: T): Promise<string> {
         this.context.push({ role: "user", content: prompt });
         const response = await this.client.chat.completions.create({
             model: this.model,
-            messages: this.context
+            messages: this.context,
+            ...(response_schema ? { response_format: zodResponseFormat(response_schema, "Response Schema") } : {})
         });
-        const message = response.choices[0]?.message;
+        // console.log("RAW RESPONSE:", JSON.stringify(response, null, 2));
+        const message = response?.choices?.[0]?.message;
         const content = message?.content;
 
         if (!message || typeof content !== "string") {
-            const errorMessage = message?.refusal || "Unexpected response format from AI";
+            const errorMessage = message?.refusal || `Unexpected response format from AI: ${JSON.stringify(response)}`;
             throw new Error(errorMessage);
         }
 

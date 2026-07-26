@@ -42,7 +42,7 @@ export class BriefNews {
     @IsOptional()
     bullets?: string[];
 
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'text', nullable: true, select: false })
     @IsString()
     @IsOptional()
     raw?: string;
