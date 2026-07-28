@@ -63,6 +63,7 @@
 import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
 import { BriefNews } from "../types/brief_news.entity.js";
+import { FetchError, ParseError, logExpectedError } from "./errors.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -74,24 +75,6 @@ const MAX_DECODE_ITEMS = 5;
 const DROP_PARAMS = new Set([
     "fbclid", "gclid", "cmpid", "ocid", "ref", "source",
 ]);
-
-// ─── Error Classes ───────────────────────────────────────────
-
-/** Expected error for network failures (timeout, connection refused, HTTP errors). */
-export class FetchError extends Error {
-    constructor(message: string, options?: ErrorOptions) {
-        super(message, options);
-        this.name = "FetchError";
-    }
-}
-
-/** Expected error for parsing failures (unexpected HTML structure, invalid JSON). */
-export class ParseError extends Error {
-    constructor(message: string, options?: ErrorOptions) {
-        super(message, options);
-        this.name = "ParseError";
-    }
-}
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -595,48 +578,7 @@ function extractTechcrunch(html: string): RawNewsItem[] {
     return results;
 }
 
-function extractEspnScores(data: unknown): RawNewsItem[] {
-    const results: RawNewsItem[] = [];
-    if (typeof data !== "object" || data === null) return results;
-    const events = (data as Record<string, unknown>)["events"];
-    if (!Array.isArray(events)) return results;
 
-    for (const event of events) {
-        if (typeof event !== "object" || event === null) continue;
-        const competitions = (event as Record<string, unknown>)["competitions"];
-        if (!Array.isArray(competitions)) continue;
-
-        for (const comp of competitions) {
-            if (typeof comp !== "object" || comp === null) continue;
-            const compObj = comp as Record<string, unknown>;
-            const statusObj = compObj["status"] as Record<string, unknown> | undefined;
-            const statusType = statusObj?.["type"] as Record<string, unknown> | undefined;
-            const status = (statusType?.["description"] as string) ?? "";
-
-            const competitors = compObj["competitors"];
-            if (!Array.isArray(competitors) || competitors.length < 2) continue;
-            const home = competitors[0] as Record<string, unknown>;
-            const away = competitors[1] as Record<string, unknown>;
-
-            const hTeam = home?.["team"] as Record<string, unknown> | undefined;
-            const aTeam = away?.["team"] as Record<string, unknown> | undefined;
-            const hname = (hTeam?.["displayName"] as string) ?? "?";
-            const aname = (aTeam?.["displayName"] as string) ?? "?";
-            const hs = (home?.["score"] as string) ?? "0";
-            const aws = (away?.["score"] as string) ?? "0";
-
-            if (hname.includes("Dodgers") || aname.includes("Dodgers")) {
-                results.push({
-                    title: `${aname} ${aws} @ ${hname} ${hs}`,
-                    url: "",
-                    time: status,
-                    category: "mlb",
-                });
-            }
-        }
-    }
-    return results;
-}
 
 function extractThepaper(html: string): RawNewsItem[] {
     // Build contId → pubTime map from embedded JSON data
@@ -783,28 +725,31 @@ async function fetchAndExtractHtml(
         const html = await fetchText(url, options);
         return extractor(html).map((item) => toBriefNews(item, sourceName));
     } catch (error) {
-        if (error instanceof FetchError) return [];
+        if (error instanceof FetchError) {
+            logExpectedError(error);
+            return [];
+        }
         throw error;
     }
 }
 
-export async function fetchBbc(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchBbc(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://www.bbc.com/news", "BBC", extractBbc, options);
 }
 
-export async function fetchBbcSport(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchBbcSport(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://www.bbc.com/sport", "BBC Sport", extractBbcSport, options);
 }
 
-export async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://edition.cnn.com/world", "CNN", extractCnn, options);
 }
 
-export async function fetchCnnSport(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchCnnSport(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://edition.cnn.com/sport", "CNN", extractCnn, options);
 }
 
-export async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml(
         "https://www.marca.com/en/football/real-madrid.html",
         "Marca",
@@ -813,7 +758,7 @@ export async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
     );
 }
 
-export async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml(
         "https://www.formula1.com/en/latest.html",
         "Formula 1",
@@ -822,7 +767,7 @@ export async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
     );
 }
 
-export async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml(
         "https://techcrunch.com/category/artificial-intelligence/",
         "TechCrunch",
@@ -831,27 +776,17 @@ export async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews
     );
 }
 
-export async function fetchEspnScores(options?: FetchOptions): Promise<BriefNews[]> {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const url = `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${today}`;
-    try {
-        const data = await fetchJson(url, options);
-        return extractEspnScores(data).map((item) => toBriefNews(item, "ESPN"));
-    } catch (error) {
-        if (error instanceof FetchError || error instanceof SyntaxError) return [];
-        throw error;
-    }
-}
 
-export async function fetchThepaper(options?: FetchOptions): Promise<BriefNews[]> {
+
+async function fetchThepaper(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://www.thepaper.cn", "澎湃新闻", extractThepaper, options);
 }
 
-export async function fetchNfnews(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchNfnews(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://www.nfnews.com", "南方都市报", extractNfnews, options);
 }
 
-export async function fetchRacefans(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchRacefans(options?: FetchOptions): Promise<BriefNews[]> {
     return fetchAndExtractHtml("https://www.racefans.net", "RaceFans", extractRacefans, options);
 }
 
@@ -910,7 +845,7 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
     },
 };
 
-export async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<BriefNews[]> {
     const config = RSS_FEEDS[feedKey];
     if (!config) throw new Error(`Unknown RSS feed: ${feedKey}`);
 
@@ -950,7 +885,10 @@ export async function fetchRssFeed(feedKey: string, options?: FetchOptions): Pro
         }
         return results;
     } catch (error) {
-        if (error instanceof FetchError) return [];
+        if (error instanceof FetchError) {
+            logExpectedError(error);
+            return [];
+        }
         throw error;
     }
 }

@@ -39,8 +39,10 @@
  * Calling with a non-map or empty map throws a `TypeError` immediately.
  */
 
-import axios from "axios";
+import axios, { AxiosError } from "axios";
+import pLimit from "p-limit";
 import { BriefNews } from "../types/brief_news.entity.js";
+import { FetchError, ParseError, logExpectedError } from "./errors.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -305,79 +307,30 @@ function getExtractorForItem(item: BriefNews): HtmlExtractor | null {
     return extractGeneric;
 }
 
-// ─── Concurrency Limiter ─────────────────────────────────────
-//
-// A counting semaphore that limits how many async tasks run in parallel.
-//
-// Concept:
-//   - `running` tracks how many tasks are currently executing (holding a slot).
-//   - `queue` is a FIFO list of callbacks from tasks waiting for a slot.
-//
-// Flow:
-//   1. A task calls `acquire()` before doing work.
-//      - If `running < limit`: the slot is granted immediately
-//        (`running` increments, function returns a resolved Promise).
-//      - If `running >= limit`: no slot available. The task "parks" by
-//        returning a new Promise whose `resolve` is pushed onto `queue`.
-//        The task is now suspended at the `await acquire()` call.
-//
-//   2. When a task finishes, it calls `release()`.
-//      - If `queue` is non-empty: the oldest waiting callback is shifted
-//        out and called. This resolves its Promise, unblocking that task.
-//        `running` stays the same because one slot was freed and immediately
-//        handed to the next waiter.
-//      - If `queue` is empty: nobody is waiting, so `running` decrements
-//        to free the slot for future `acquire()` calls.
-//
-// Example with limit=2:
-//   Task A: acquire() → running=1 → starts work
-//   Task B: acquire() → running=2 → starts work
-//   Task C: acquire() → running=2 (full) → parks in queue
-//   Task A: release() → queue has C → resolves C's Promise → C starts work
-//   (running is still 2: A freed a slot, C took it)
 
-function createSemaphore(limit: number) {
-    let running = 0;
-    const queue: Array<() => void> = [];
-
-    async function acquire(): Promise<void> {
-        if (running < limit) {
-            running++;
-            return;
-        }
-        // All slots occupied — park until release() wakes us
-        return new Promise<void>((resolve) => queue.push(resolve));
-    }
-
-    function release(): void {
-        const next = queue.shift();
-        if (next) {
-            // Hand the slot to the next waiting task (running count unchanged)
-            next();
-        } else {
-            // No one waiting — free the slot
-            running--;
-        }
-    }
-
-    return { acquire, release };
-}
 
 // ─── HTTP Fetch ──────────────────────────────────────────────
 
 async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
-    const response = await axios.get<string>(url, {
-        timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
-        headers: {
-            "User-Agent": options?.userAgent ?? USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-        },
-        responseType: "text",
-        validateStatus: (status) => status === 200,
-        maxRedirects: 5,
-    });
-    return response.data;
+    try {
+        const response = await axios.get<string>(url, {
+            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+            headers: {
+                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+            },
+            responseType: "text",
+            validateStatus: (status) => status === 200,
+            maxRedirects: 5,
+        });
+        return response.data;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            throw new FetchError(`read fetch failed: ${error.message}`, { cause: error });
+        }
+        throw error;
+    }
 }
 
 // ─── Public API ──────────────────────────────────────────────
@@ -411,35 +364,54 @@ export async function readNewsDetails(
 
     const maxBody = options?.maxBodyChars ?? MAX_BODY_CHARS;
     const concurrencyLimit = options?.concurrency ?? CONCURRENCY;
-    const sem = createSemaphore(concurrencyLimit);
+    const limit = pLimit(concurrencyLimit);
 
-    const tasks = Array.from(items.values()).map(async (item) => {
-        const extractor = getExtractorForItem(item);
-        if (!extractor) return;
-
-        if (!item.url?.trim()) return;
-
-        try {
-            const parsed = new URL(item.url);
-            if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
-        } catch {
-            return;
-        }
-
-        await sem.acquire();
-        try {
-            const html = await fetchHtml(item.url, options);
-            const body = extractor(html);
-            if (body) {
-                item.raw = body.slice(0, maxBody);
+    const tasks = Array.from(items.values()).map((item) => {
+        return limit(async () => {
+            const extractor = getExtractorForItem(item);
+            if (!extractor) {
+                logExpectedError(new ParseError(`No extractor found for item: ${item.title}`));
+                return;
             }
-        } catch {
-            // Expected per-item error (network, HTTP, parsing) — skip
-        } finally {
-            sem.release();
-        }
+            if (!item.url?.trim()) {
+                logExpectedError(new ParseError(`Missing or empty URL for item: ${item.title}`));
+                return;
+            }
+
+            try {
+                const parsed = new URL(item.url);
+                if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                    logExpectedError(new ParseError(`Unsupported protocol (${parsed.protocol}) for URL: ${item.url}`));
+                    return;
+                }
+            } catch (error) {
+                // new URL throws TypeError for invalid URLs
+                logExpectedError(new ParseError(`Invalid URL: ${item.url}`));
+                return;
+            }
+
+            try {
+                const html = await fetchHtml(item.url, options);
+                const body = extractor(html);
+                if (body) {
+                    item.raw = body.slice(0, maxBody);
+                }
+            } catch (error) {
+                if (error instanceof FetchError || error instanceof ParseError) {
+                    logExpectedError(error);
+                    return;
+                }
+                throw error;
+            }
+        });
     });
 
-    await Promise.all(tasks);
+    const settled = await Promise.allSettled(tasks);
+    for (const result of settled) {
+        if (result.status === "rejected") {
+            throw result.reason;
+        }
+    }
+
     return items;
 }
