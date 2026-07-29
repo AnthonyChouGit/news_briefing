@@ -2,23 +2,25 @@ import OpenAI from "openai";
 import { type AIClient } from "../types/ai_client.interface.js";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
+import { AICientConfigSchema, type AICientConfig } from "../types/config.schema.js";
 
 export class OpenAIClient implements AIClient {
 
     private readonly model: string;
     private readonly client: OpenAI;
-    private readonly instruction: string | undefined;
+    private instruction: string | undefined;
     private context: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
-    constructor(api_key: string, base_url: string, model: string, instruction?: string) {
+    constructor(config: AICientConfig) {
+        const valid_config = AICientConfigSchema.parse(config);
         this.client = new OpenAI({
-            apiKey: api_key,
-            baseURL: base_url,
-            timeout: 300000, // 5 minutes
-            maxRetries: 3
+            apiKey: valid_config.api_key,
+            baseURL: valid_config.base_url,
+            timeout: valid_config.timeout,
+            maxRetries: valid_config.max_retries
         });
-        this.model = model;
-        this.instruction = instruction;
+        this.model = valid_config.model;
+        this.instruction = valid_config.instruction;
         this.clearContext();
     }
 
@@ -46,6 +48,11 @@ export class OpenAIClient implements AIClient {
         this.context = [];
         if (this.instruction)
             this.context.push({ role: "system", content: this.instruction });
+    }
+
+    public setInstruction(instruction: string): void {
+        this.instruction = instruction;
+        this.clearContext();
     }
 }
 

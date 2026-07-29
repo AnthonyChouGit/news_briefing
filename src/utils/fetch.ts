@@ -86,14 +86,14 @@ interface RawNewsItem {
     raw?: string;
 }
 
-export type NewsCategory = 
-    | "international" 
-    | "football" 
-    | "realmadrid" 
-    | "f1" 
-    | "ai" 
-    | "mlb" 
-    | "shenzhen" 
+export type NewsCategory =
+    | "international"
+    | "football"
+    | "realmadrid"
+    | "f1"
+    | "ai"
+    | "mlb"
+    | "shenzhen"
     | "tabletennis";
 
 export interface FetchOptions {
@@ -942,7 +942,7 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
  * Sources run concurrently. Expected errors per source yield empty results
  * without affecting other sources. Results are deduplicated by canonical URL.
  */
-export async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<Map<string, BriefNews>> {
+async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<Map<string, BriefNews>> {
     const sources = CATEGORY_SOURCES[category];
     if (!sources) {
         throw new TypeError(`Invalid or unsupported category: ${category}`);

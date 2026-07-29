@@ -14,7 +14,7 @@ export class BriefNews {
     @IsString()
     url!: string;
 
-    @Column({ type: 'text', unique: true, nullable: false })
+    @Column({ type: 'text', nullable: false })
     @IsNotEmpty()
     @IsString()
     title!: string;
