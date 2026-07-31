@@ -3,7 +3,7 @@ import { type AIClient } from "../types/ai_client.interface.js";
 import * as z from "zod";
 import { ParseError, logExpectedError } from "./errors.js";
 
-const SUMMARIZE_INSTRUCTION = `You are a news summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and optionally raw (the full article text).
+const SUMMARIZE_INSTRUCTION = `You are a news summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and raw (the full article text).
 
 For EVERY article in the input, produce a concise summary as bullet points. You must return a JSON array with exactly one entry per input article, in the same order. Each entry must have:
 
@@ -12,7 +12,7 @@ For EVERY article in the input, produce a concise summary as bullet points. You 
 
 Bullet point rules:
 - Each bullet must be a single, complete sentence or phrase that captures one key fact or takeaway.
-- Each bullet must be at most 50 characters long. This is a hard limit — do not exceed it.
+- Each bullet must be between 10 and 50 characters long. This is a hard limit — do not exceed it or fall short.
 - Bullets should be informative and specific. Avoid vague or generic statements like "The article discusses..." or "Details were provided."
 - Prioritize the most newsworthy facts: who, what, when, where, and why.
 - Do not repeat information across bullets.
@@ -32,7 +32,7 @@ export class NewsSummarizer {
         const res_schema = z.array(
             z.object({
                 hash_id: z.enum([...items.keys()]),
-                bullets: z.array(z.string().nonempty().max(50)).min(3).max(5)
+                bullets: z.array(z.string().nonempty().min(10).max(50)).min(3).max(5)
             })
         ).length(items.size);
 

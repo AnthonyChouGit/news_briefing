@@ -1,7 +1,8 @@
-import { Entity, Column, CreateDateColumn, PrimaryColumn } from "typeorm";
+import { Entity, Column, CreateDateColumn, PrimaryColumn, Index } from "typeorm";
 import { IsNotEmpty, ArrayMinSize, ArrayMaxSize, IsUrl, IsString, IsOptional, IsDate, IsArray } from "class-validator";
 
 @Entity("brief_news")
+@Index("idx_brief_news_category_source_date", ["category", "source_date"])
 export class BriefNews {
     @PrimaryColumn({ type: 'text' })
     @IsNotEmpty()
@@ -31,7 +32,7 @@ export class BriefNews {
     @Column({ type: 'text', nullable: false })
     @IsNotEmpty()
     @IsString()
-    category!: string;
+    category!: NewsCategory;
 
     @Column({ type: 'text', array: true, nullable: true })
     @IsNotEmpty({ each: true })
@@ -52,3 +53,12 @@ export class BriefNews {
     created_at!: Date;
 }
 
+export type NewsCategory =
+    | "international"
+    | "football"
+    | "realmadrid"
+    | "f1"
+    | "ai"
+    | "mlb"
+    | "shenzhen"
+    | "tabletennis";

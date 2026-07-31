@@ -24,8 +24,9 @@ export class OpenAIClient implements AIClient {
         this.clearContext();
     }
 
-    public async ask<T extends ZodType>(prompt: string, response_schema?: T): Promise<string> {
-        this.context.push({ role: "user", content: prompt });
+    public async ask<T extends ZodType>(prompt: string, response_schema?: T, save_context: boolean = false): Promise<string> {
+        if (save_context)
+            this.context.push({ role: "user", content: prompt });
         const response = await this.client.chat.completions.create({
             model: this.model,
             messages: this.context,
@@ -39,8 +40,8 @@ export class OpenAIClient implements AIClient {
             const errorMessage = message?.refusal || `Unexpected response format from AI: ${JSON.stringify(response)}`;
             throw new Error(errorMessage);
         }
-
-        this.context.push(message);
+        if (save_context)
+            this.context.push(message);
         return content;
     }
 

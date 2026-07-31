@@ -10,4 +10,4 @@ CREATE TABLE IF NOT EXISTS brief_news (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_brief_news_source_date ON brief_news(source_date);
+CREATE INDEX IF NOT EXISTS idx_brief_news_category_source_date ON brief_news(category, source_date DESC);

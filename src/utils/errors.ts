@@ -18,5 +18,5 @@ export function logExpectedError(error: unknown) {
     const reason = error instanceof Error ? error.message : String(error);
     const d = new Date(Date.now() + 8 * 3600000);
     const dateStr = d.toISOString().replace("Z", "+08:00");
-    console.log(`[${dateStr}] Expected Error: ${reason}`);
+    console.error(`[${dateStr}] Expected Error: ${reason}`);
 }

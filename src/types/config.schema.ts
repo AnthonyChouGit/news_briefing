@@ -20,3 +20,20 @@ export const AICientConfigSchema = z.object({
 });
 
 export type AICientConfig = z.infer<typeof AICientConfigSchema>;
+
+export const FetchOptionsSchema = z.object({
+    timeout: z.number().int().positive().optional(),
+    maxDecodeItems: z.number().int().positive().optional(),
+    userAgent: z.string().nonempty().optional()
+}).default({});
+
+export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
+
+export const ReadOptionsSchema = z.object({
+    timeout: z.number().int().positive().optional(),
+    userAgent: z.string().nonempty().optional(),
+    maxBodyChars: z.number().int().positive().optional(),
+    concurrency: z.number().int().positive().optional()
+}).default({});
+
+export type ReadOptions = z.infer<typeof ReadOptionsSchema>;

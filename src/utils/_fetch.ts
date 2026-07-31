@@ -62,8 +62,9 @@
 
 import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
-import { BriefNews } from "../types/brief_news.entity.js";
+import { BriefNews, type NewsCategory } from "../types/brief_news.entity.js";
 import { FetchError, ParseError, logExpectedError } from "./errors.js";
+import { type FetchOptions } from "../types/config.schema.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -82,25 +83,10 @@ interface RawNewsItem {
     title: string;
     url: string;
     time: string;
-    category: string;
+    category: NewsCategory;
     raw?: string;
 }
 
-export type NewsCategory =
-    | "international"
-    | "football"
-    | "realmadrid"
-    | "f1"
-    | "ai"
-    | "mlb"
-    | "shenzhen"
-    | "tabletennis";
-
-export interface FetchOptions {
-    timeout?: number;
-    maxDecodeItems?: number;
-    userAgent?: string;
-}
 
 interface DecodeResult {
     status: "ok" | "passthrough" | "error";
@@ -110,7 +96,7 @@ interface DecodeResult {
 
 interface RssFeedConfig {
     url: string;
-    category: string;
+    category: NewsCategory;
     sourceName: string;
 }
 
@@ -197,10 +183,12 @@ function isArticleUrl(url: string): boolean {
 
 // ─── Date Parsing ────────────────────────────────────────────
 
+export const FALLBACK_DATE = new Date(0);
+
 function parseSourceDate(dateStr: string): Date {
-    if (!dateStr.trim()) return new Date();
+    if (!dateStr.trim()) return FALLBACK_DATE;
     const parsed = new Date(dateStr);
-    return isNaN(parsed.getTime()) ? new Date() : parsed;
+    return isNaN(parsed.getTime()) ? FALLBACK_DATE : parsed;
 }
 
 // ─── BriefNews Factory ──────────────────────────────────────
@@ -937,12 +925,17 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
     ],
 };
 
+interface FetchArguments {
+    category: NewsCategory,
+    options: FetchOptions
+}
+
 /**
  * Fetch all news for a given category from every related source.
  * Sources run concurrently. Expected errors per source yield empty results
  * without affecting other sources. Results are deduplicated by canonical URL.
  */
-async function fetchNewsByCategory(category: NewsCategory, options: FetchOptions = {}): Promise<Map<string, BriefNews>> {
+export async function fetchNewsByCategory({ category, options }: FetchArguments): Promise<Map<string, BriefNews>> {
     const sources = CATEGORY_SOURCES[category];
     if (!sources) {
         throw new TypeError(`Invalid or unsupported category: ${category}`);
