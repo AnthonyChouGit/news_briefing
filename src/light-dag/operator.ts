@@ -12,6 +12,8 @@ export interface Operator {
     outputs: ZodObject;
     requires: ZodObject;
     options: ZodObject;
+    inputMap?: Record<string, string>;
+    outputMap?: Record<string, string>;
     exec:
     | ((args: OperatorArgs) => Record<string, unknown> | Promise<Record<string, unknown>>)
     | string;

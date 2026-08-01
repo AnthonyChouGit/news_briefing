@@ -12,9 +12,10 @@ export class LightDag {
         this.operators = new Map<string, Operator>();
         this.task_names = new Set<string>();
         for (const op of operators) {
-            const input_names = Object.keys(op.inputs.shape);
-            const output_names = new Set(Object.keys(op.outputs.shape));
-            const self_cycle = input_names.filter(name => output_names.has(name));
+            const input_names = Object.keys(op.inputs.shape).map(n => op.inputMap?.[n] ?? n);
+            const output_names = Object.keys(op.outputs.shape).map(n => op.outputMap?.[n] ?? n);
+            const output_names_set = new Set(output_names);
+            const self_cycle = input_names.filter(name => output_names_set.has(name));
             if (self_cycle.length > 0)
                 throw new Error(`Operator "${op.name}" consumes its own output(s): ${self_cycle.join(", ")}`);
             for (const name of input_names)
@@ -65,18 +66,11 @@ export class LightDag {
                 throw new Error(`Requested output "${output_name}" does not exist in the DAG`);
             return task;
         });
-        const settled_outputs = await Promise.allSettled(output_promises);
+        const resolved_outputs = await Promise.all(output_promises);
         const output_values: Record<string, unknown> = {};
-        const output_errors: unknown[] = [];
         for (let i = 0; i < outputs.length; i++) {
-            const result = settled_outputs[i]!;
-            if (result.status === 'rejected')
-                output_errors.push(result.reason);
-            else
-                output_values[outputs[i]!] = result.value;
+            output_values[outputs[i]!] = resolved_outputs[i];
         }
-        if (output_errors.length > 0)
-            throw new AggregateError(output_errors, `${output_errors.length} output task(s) failed`);
         this.log("run() completed, outputs:", Object.keys(output_values));
         return output_values;
     }
@@ -92,29 +86,24 @@ export class LightDag {
         if (!op) {
             throw new Error(`Node ${name} not found`);
         }
-        const input_names = Object.keys(op.inputs.shape);
-        const output_names = Object.keys(op.outputs.shape);
-        const input_results = await Promise.allSettled(
-            input_names.map(n => {
-                const task = tasks.get(n);
-                if (!task)
-                    throw new Error(`Task "${n}" not found for node "${name}"`);
-                return task;
-            })
-        );
-        const inputs: Record<string, unknown> = {};
-        const input_errors: unknown[] = [];
-        for (let i = 0; i < input_names.length; i++) {
-            const result = input_results[i]!;
-            if (result.status === 'rejected')
-                input_errors.push(result.reason);
-            else
-                inputs[input_names[i]!] = result.value;
-        }
-        if (input_errors.length > 0)
-            throw new AggregateError(input_errors, `${input_errors.length} input task(s) failed for node "${name}"`);
-        this.log(`operator "${name}" inputs resolved:`, input_names);
+        const schema_input_names = Object.keys(op.inputs.shape);
+        const schema_output_names = Object.keys(op.outputs.shape);
+        const global_input_names = schema_input_names.map(n => op.inputMap?.[n] ?? n);
+        const global_output_names = schema_output_names.map(n => op.outputMap?.[n] ?? n);
         try {
+            const input_results = await Promise.all(
+                global_input_names.map(global_name => {
+                    const task = tasks.get(global_name);
+                    if (!task)
+                        throw new Error(`Task "${global_name}" not found for node "${name}"`);
+                    return task;
+                })
+            );
+            const inputs: Record<string, unknown> = {};
+            for (let i = 0; i < schema_input_names.length; i++) {
+                inputs[schema_input_names[i]!] = input_results[i];
+            }
+            this.log(`operator "${name}" inputs resolved:`, global_input_names);
             const parsed_inputs = op.inputs.parse(inputs);
             const parsed_requires = op.requires.parse(context);
             const parsed_options = op.options.parse(options);
@@ -128,18 +117,19 @@ export class LightDag {
                 output = await op.exec({ inputs: parsed_inputs, requires: parsed_requires, options: parsed_options });
             }
             const parsed_output = op.outputs.parse(output);
-            for (const output_name of output_names) {
-                const entry = resolves.get(output_name);
+            for (const schema_name of schema_output_names) {
+                const global_name = op.outputMap?.[schema_name] ?? schema_name;
+                const entry = resolves.get(global_name);
                 if (!entry)
-                    throw new Error(`Resolve not found for output "${output_name}" in node "${name}"`);
-                entry.resolve(parsed_output[output_name]);
+                    throw new Error(`Resolve not found for output "${global_name}" in node "${name}"`);
+                entry.resolve(parsed_output[schema_name]);
             }
-            this.log(`operator "${name}" completed, outputs:`, output_names);
+            this.log(`operator "${name}" completed, outputs:`, global_output_names);
         } catch (err) {
             console.error(`Operator "${name}" failed:`, err);
-            this.log(`operator "${name}" failed, rejecting outputs:`, output_names);
-            for (const output_name of output_names) {
-                resolves.get(output_name)?.reject(err);
+            this.log(`operator "${name}" failed, rejecting outputs:`, global_output_names);
+            for (const global_name of global_output_names) {
+                resolves.get(global_name)?.reject(err);
             }
         }
     }
