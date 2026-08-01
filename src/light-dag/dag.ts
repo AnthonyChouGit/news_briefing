@@ -82,15 +82,17 @@ export class LightDag {
         context: Record<string, unknown>,
         options: Record<string, string | number | boolean> = {}
     ): Promise<void> {
-        const op = this.operators.get(name);
-        if (!op) {
-            throw new Error(`Node ${name} not found`);
-        }
-        const schema_input_names = Object.keys(op.inputs.shape);
-        const schema_output_names = Object.keys(op.outputs.shape);
-        const global_input_names = schema_input_names.map(n => op.inputMap?.[n] ?? n);
-        const global_output_names = schema_output_names.map(n => op.outputMap?.[n] ?? n);
+        let global_output_names: string[] = [];
         try {
+            const op = this.operators.get(name);
+            if (!op) {
+                throw new Error(`Node ${name} not found`);
+            }
+            const schema_input_names = Object.keys(op.inputs.shape);
+            const schema_output_names = Object.keys(op.outputs.shape);
+            const global_input_names = schema_input_names.map(n => op.inputMap?.[n] ?? n);
+            global_output_names = schema_output_names.map(n => op.outputMap?.[n] ?? n);
+            
             const input_results = await Promise.all(
                 global_input_names.map(global_name => {
                     const task = tasks.get(global_name);
