@@ -1,27 +1,23 @@
 import { type Piscina } from "piscina";
-import { type Operator } from "./operator.js";
+import { type Operator, type OperatorArgs, type OperatorOutput, OperatorArgsSchema, OperatorOutputSchema } from "./operator.js";
 
 export class LightDag {
     private readonly pool: Piscina | undefined;
     private readonly operators: Map<string, Operator>;
     private readonly task_names: Set<string>;
-    private debug = false;
+    private debug: boolean;
 
-    constructor(operators: Operator[], worker_pool?: Piscina) {
+    constructor(operators: Operator[], worker_pool?: Piscina, debug?: boolean) {
         this.pool = worker_pool;
+        this.debug = debug ?? false;
         this.operators = new Map<string, Operator>();
         this.task_names = new Set<string>();
         for (const op of operators) {
-            const input_names = Object.keys(op.inputs.shape).map(n => op.inputMap?.[n] ?? n);
-            const output_names = Object.keys(op.outputs.shape).map(n => op.outputMap?.[n] ?? n);
-            const output_names_set = new Set(output_names);
-            const self_cycle = input_names.filter(name => output_names_set.has(name));
-            if (self_cycle.length > 0)
-                throw new Error(`Operator "${op.name}" consumes its own output(s): ${self_cycle.join(", ")}`);
-            for (const name of input_names)
+            for (const name of Object.keys(op.input_schema.shape).map(n => op.inputMap?.[n] ?? n))
                 this.task_names.add(name);
-            for (const name of output_names)
-                this.task_names.add(name);
+            for (const [, outputs] of Object.entries(op.output_schemas))
+                for (const name of Object.keys(outputs.shape).map(n => op.outputMap?.[n] ?? n))
+                    this.task_names.add(name);
             if (this.operators.has(op.name))
                 throw new Error(`Duplicate operator name: "${op.name}"`);
             this.operators.set(op.name, op);
@@ -82,17 +78,18 @@ export class LightDag {
         context: Record<string, unknown>,
         options: Record<string, string | number | boolean> = {}
     ): Promise<void> {
-        let global_output_names: string[] = [];
+        let all_global_output_names: string[] = [];
         try {
             const op = this.operators.get(name);
             if (!op) {
                 throw new Error(`Node ${name} not found`);
             }
-            const schema_input_names = Object.keys(op.inputs.shape);
-            const schema_output_names = Object.keys(op.outputs.shape);
+            for (const branchSchema of Object.values(op.output_schemas))
+                for (const key of Object.keys(branchSchema.shape))
+                    all_global_output_names.push(op.outputMap?.[key] ?? key);
+            const schema_input_names = Object.keys(op.input_schema.shape);
             const global_input_names = schema_input_names.map(n => op.inputMap?.[n] ?? n);
-            global_output_names = schema_output_names.map(n => op.outputMap?.[n] ?? n);
-            
+
             const input_results = await Promise.all(
                 global_input_names.map(global_name => {
                     const task = tasks.get(global_name);
@@ -106,19 +103,24 @@ export class LightDag {
                 inputs[schema_input_names[i]!] = input_results[i];
             }
             this.log(`operator "${name}" inputs resolved:`, global_input_names);
-            const parsed_inputs = op.inputs.parse(inputs);
-            const parsed_requires = op.requires.parse(context);
-            const parsed_options = op.options.parse(options);
-            let output;
+            const parsed_inputs = op.input_schema.parse(inputs);
+            const parsed_requires = op.requires_schema.parse(context);
+            const parsed_options = op.options_schema.parse(options);
+            let output: OperatorOutput;
+            const op_input_arg: OperatorArgs = OperatorArgsSchema.parse({ inputs: parsed_inputs, requires: parsed_requires, options: parsed_options });
             if (typeof op.exec === "string") {
                 if (!this.pool)
                     throw new Error(`Worker pool not initialized for node ${name}`);
-                output = await this.pool.run({ inputs: parsed_inputs, requires: parsed_requires, options: parsed_options },
-                    { filename: op.exec });
+                output = await this.pool.run(op_input_arg, { filename: op.exec });
             } else {
-                output = await op.exec({ inputs: parsed_inputs, requires: parsed_requires, options: parsed_options });
+                output = await op.exec(op_input_arg);
             }
-            const parsed_output = op.outputs.parse(output);
+            const branch: string = output.branch;
+            if (!Object.hasOwn(op.output_schemas, branch))
+                throw new Error(`Branch "${branch}" not found for node "${name}"`);
+            const parsed_output = op.output_schemas[branch]!.parse(output.output);
+            const schema_output_names = Object.keys(op.output_schemas[branch]!.shape);
+            const taken_output_names = schema_output_names.map(n => op.outputMap?.[n] ?? n);
             for (const schema_name of schema_output_names) {
                 const global_name = op.outputMap?.[schema_name] ?? schema_name;
                 const entry = resolves.get(global_name);
@@ -126,11 +128,11 @@ export class LightDag {
                     throw new Error(`Resolve not found for output "${global_name}" in node "${name}"`);
                 entry.resolve(parsed_output[schema_name]);
             }
-            this.log(`operator "${name}" completed, outputs:`, global_output_names);
+            this.log(`operator "${name}" completed, outputs:`, taken_output_names);
         } catch (err) {
             console.error(`Operator "${name}" failed:`, err);
-            this.log(`operator "${name}" failed, rejecting outputs:`, global_output_names);
-            for (const global_name of global_output_names) {
+            this.log(`operator "${name}" failed, rejecting outputs:`, all_global_output_names);
+            for (const global_name of all_global_output_names) {
                 resolves.get(global_name)?.reject(err);
             }
         }
