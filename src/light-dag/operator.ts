@@ -19,8 +19,8 @@ export abstract class Operator {
     abstract output_schemas: Record<string, ZodObject>;
     requires_schema: z.ZodType<Record<string, unknown>> = z.object({}).default({});
     options_schema: z.ZodType<Record<string, string | number | boolean | undefined>> = z.object({}).default({});
-    inputMap?: Record<string, string>;
-    outputMap?: Record<string, string>;
+    input_map?: Record<string, string>;
+    output_map?: Record<string, string>;
     abstract exec:
         | ((args: OperatorArgs) => Promise<OperatorOutput>)
         | string;

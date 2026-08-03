@@ -28,11 +28,11 @@ export default async function fetchNews({ inputs, requires, options }: OperatorA
         const { news_fetcher, thread_pool } = requires as FetchNewsRequires;
         const fetch_options = options as FetchOptions;
         const fetched: Map<NewsCategory, Map<string, BriefNewsLike>> = await news_fetcher.fetch(categories, thread_pool, fetch_options);
-        const op_output: FetchNewsOutput = FetchNewsOutputSchema.parse({ fetched_items: fetched });
+        const op_output: FetchNewsOutput = { fetched_items: fetched };
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 1, err_obj: err };
-        return { branch: "error", output: ErrorInfoSchema.parse({ err_output }) };
+        return { branch: "error", output: { err_output } };
     }
 }
 
