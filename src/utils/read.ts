@@ -3,20 +3,10 @@ import { type ReadOptions, ReadOptionsSchema } from "../types/config.schema.js";
 import { type Piscina } from "piscina";
 
 export class NewsReader {
-    private readonly pool: Piscina;
-    private readonly readOptions: ReadOptions;
 
-    constructor(
-        pool: Piscina,
-        readOptions: ReadOptions = {}
-    ) {
-        this.pool = pool;
-        this.readOptions = ReadOptionsSchema.parse(readOptions);
-    }
-
-    public async read(all_categories: Map<NewsCategory, Map<string, BriefNewsLike>>): Promise<Map<NewsCategory, Map<string, BriefNewsLike>>> {
+    public async read(all_categories: Map<NewsCategory, Map<string, BriefNewsLike>>, pool: Piscina, readOptions: ReadOptions): Promise<Map<NewsCategory, Map<string, BriefNewsLike>>> {
         const tasks = Array.from(all_categories.values(), (items) =>
-            this.pool.run({ items, options: this.readOptions },
+            pool.run({ items, options: readOptions },
                 { name: 'readNewsDetails', filename: new URL('./_read.js', import.meta.url).href })
         );
         const results = await Promise.allSettled(tasks);

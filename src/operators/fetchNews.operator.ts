@@ -4,6 +4,7 @@ import * as z from "zod";
 import { BriefNewsLikeSchema, NewsCategorySchema, type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
 import { Piscina } from "piscina";
 import { ErrorInfoSchema, type ErrorInfo } from "../types/error.schema.js";
+import { FetchOptionsSchema, type FetchOptions } from "../types/config.schema.js";
 
 const FetchNewsInputSchema = z.object({
     categories: z.array(NewsCategorySchema).nonempty()
@@ -21,18 +22,11 @@ const FetchNewsRequiresSchema = z.object({
 });
 type FetchNewsRequires = z.infer<typeof FetchNewsRequiresSchema>;
 
-const FetchNewsOptionsSchema = z.object({
-    timeout: z.coerce.number().int().nonnegative().optional(),
-    maxDecodeItems: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional()
-}).default({});
-type FetchNewsOptions = z.infer<typeof FetchNewsOptionsSchema>;
-
 export default async function fetchNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
-        const { categories } = FetchNewsInputSchema.parse(inputs);
-        const { news_fetcher, thread_pool } = FetchNewsRequiresSchema.parse(requires);
-        const fetch_options: FetchNewsOptions = FetchNewsOptionsSchema.parse(options);
+        const { categories } = inputs as FetchNewsInput;
+        const { news_fetcher, thread_pool } = requires as FetchNewsRequires;
+        const fetch_options = options as FetchOptions;
         const fetched: Map<NewsCategory, Map<string, BriefNewsLike>> = await news_fetcher.fetch(categories, thread_pool, fetch_options);
         const op_output: FetchNewsOutput = FetchNewsOutputSchema.parse({ fetched_items: fetched });
         return { branch: "default", output: op_output };
@@ -47,6 +41,6 @@ export class FetchNewsOperator extends Operator {
     input_schema = FetchNewsInputSchema;
     output_schemas = { default: FetchNewsOutputSchema, error: ErrorInfoSchema };
     requires_schema = FetchNewsRequiresSchema;
-    options_schema = FetchNewsOptionsSchema;
+    options_schema = FetchOptionsSchema;
     exec = fetchNews;
 }

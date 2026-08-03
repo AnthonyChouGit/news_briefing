@@ -35,9 +35,9 @@ export class LightDag {
 
     public async run(
         inputs: Record<string, unknown>,
-        context: Record<string, unknown>,
         outputs: string[],
-        options: Record<string, Record<string, string | number | boolean>>
+        context?: Record<string, unknown>,
+        options?: Record<string, Record<string, string | number | boolean>>
     ) {
         const tasks = new Map<string, Promise<unknown>>();
         const resolves = new Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>();
@@ -48,7 +48,7 @@ export class LightDag {
         }
         this.log("run() started, operators:", [...this.operators.keys()]);
         for (const op_name of this.operators.keys())
-            this.runNode(op_name, tasks, resolves, context, options[op_name]);
+            this.runNode(op_name, tasks, resolves, context, options?.[op_name]);
         for (const [input_name, input_value] of Object.entries(inputs)) {
             const entry = resolves.get(input_name);
             if (!entry)
@@ -75,8 +75,8 @@ export class LightDag {
         name: string,
         tasks: Map<string, Promise<unknown>>,
         resolves: Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>,
-        context: Record<string, unknown>,
-        options: Record<string, string | number | boolean> = {}
+        context?: Record<string, unknown>,
+        options?: Record<string, string | number | boolean>
     ): Promise<void> {
         let all_global_output_names: string[] = [];
         try {

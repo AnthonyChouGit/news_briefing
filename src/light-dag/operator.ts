@@ -17,11 +17,11 @@ export abstract class Operator {
     abstract name: string;
     abstract input_schema: ZodObject;
     abstract output_schemas: Record<string, ZodObject>;
-    abstract requires_schema: ZodObject;
-    abstract options_schema: z.ZodType<Record<string, string | number | boolean | undefined>>;
+    requires_schema: z.ZodType<Record<string, unknown>> = z.object({}).default({});
+    options_schema: z.ZodType<Record<string, string | number | boolean | undefined>> = z.object({}).default({});
     inputMap?: Record<string, string>;
     outputMap?: Record<string, string>;
     abstract exec:
-    | ((args: OperatorArgs) => Promise<OperatorOutput>)
-    | string;
+        | ((args: OperatorArgs) => Promise<OperatorOutput>)
+        | string;
 }
