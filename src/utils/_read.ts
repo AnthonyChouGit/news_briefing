@@ -41,7 +41,7 @@
 
 import axios, { AxiosError } from "axios";
 import pLimit from "p-limit";
-import { BriefNews } from "../types/brief_news.entity.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type ReadOptions } from "../types/config.schema.js";
 import { FetchError, ParseError, logExpectedError } from "./errors.js";
 
@@ -277,7 +277,7 @@ const SKIP_HOSTS = new Set(["news.qq.com"]);
  *
  * Priority: skip-list → source_name map → URL hostname map → generic fallback.
  */
-function getExtractorForItem(item: BriefNews): HtmlExtractor | null {
+function getExtractorForItem(item: BriefNewsLike): HtmlExtractor | null {
     if (SKIP_SOURCE_NAMES.has(item.source_name)) return null;
 
     try {
@@ -357,7 +357,7 @@ async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
 // ─── Public API ──────────────────────────────────────────────
 
 interface ReadArguments {
-    items: Map<string, BriefNews>,
+    items: Map<string, BriefNewsLike>,
     options?: ReadOptions
 }
 
@@ -372,7 +372,7 @@ interface ReadArguments {
  *
  * @throws {TypeError} If `items` is not a Map or is empty.
  */
-export async function readNewsDetails({ items, options }: ReadArguments): Promise<Map<string, BriefNews>> {
+export async function readNewsDetails({ items, options }: ReadArguments): Promise<Map<string, BriefNewsLike>> {
     if (!(items instanceof Map)) {
         throw new TypeError("readNewsDetails: expected a Map of BriefNews items");
     }

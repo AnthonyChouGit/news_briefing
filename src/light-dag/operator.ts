@@ -13,15 +13,15 @@ export const OperatorOutputSchema = z.object({
 });
 export type OperatorOutput = z.infer<typeof OperatorOutputSchema>;
 
-export interface Operator {
-    name: string;
-    input_schema: ZodObject;
-    output_schemas: Record<string, ZodObject>;
-    requires_schema: ZodObject;
-    options_schema: ZodObject;
+export abstract class Operator {
+    abstract name: string;
+    abstract input_schema: ZodObject;
+    abstract output_schemas: Record<string, ZodObject>;
+    abstract requires_schema: ZodObject;
+    abstract options_schema: z.ZodType<Record<string, string | number | boolean | undefined>>;
     inputMap?: Record<string, string>;
     outputMap?: Record<string, string>;
-    exec:
+    abstract exec:
     | ((args: OperatorArgs) => Promise<OperatorOutput>)
     | string;
 }

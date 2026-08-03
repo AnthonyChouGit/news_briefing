@@ -1,5 +1,6 @@
 import { Entity, Column, CreateDateColumn, PrimaryColumn, Index } from "typeorm";
 import { IsNotEmpty, ArrayMinSize, ArrayMaxSize, IsUrl, IsString, IsOptional, IsDate, IsArray } from "class-validator";
+import * as z from "zod";
 
 @Entity("brief_news")
 @Index("idx_brief_news_category_source_date", ["category", "source_date"])
@@ -41,24 +42,32 @@ export class BriefNews {
     @IsString({ each: true })
     @IsArray()
     @IsOptional()
-    bullets?: string[];
+    bullets?: string[] | undefined;
 
     @Column({ type: 'text', nullable: true, select: false })
     @IsString()
     @IsOptional()
-    raw?: string;
+    raw?: string | undefined;
 
     @CreateDateColumn({ type: 'timestamptz', nullable: false })
     @IsDate()
     created_at!: Date;
 }
 
-export type NewsCategory =
-    | "international"
-    | "football"
-    | "realmadrid"
-    | "f1"
-    | "ai"
-    | "mlb"
-    | "shenzhen"
-    | "tabletennis";
+export const NewsCategorySchema = z.enum(["international", "football", "realmadrid", "f1", "ai", "mlb", "shenzhen", "tabletennis"]);
+
+export type NewsCategory = z.infer<typeof NewsCategorySchema>;
+
+export const BriefNewsLikeSchema = z.object({
+    hash_id: z.string().nonempty(),
+    url: z.url().nonempty(),
+    title: z.string().nonempty(),
+    source_date: z.coerce.date(),
+    source_name: z.string().nonempty(),
+    category: NewsCategorySchema,
+    bullets: z.array(z.string().nonempty()).min(3).max(5).optional(),
+    raw: z.string().optional(),
+    created_at: z.coerce.date()
+}) satisfies z.ZodType<BriefNews>;
+
+export type BriefNewsLike = z.infer<typeof BriefNewsLikeSchema>;

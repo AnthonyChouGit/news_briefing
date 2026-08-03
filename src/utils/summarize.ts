@@ -1,5 +1,5 @@
-import { type BriefNews } from "../types/brief_news.entity.js";
-import { type AIClient } from "../types/ai_client.interface.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type AIClient } from "../types/ai_client.js";
 import * as z from "zod";
 import { ParseError, logExpectedError } from "./errors.js";
 
@@ -25,7 +25,7 @@ export class NewsSummarizer {
         this.summary_ai_client.setInstruction(SUMMARIZE_INSTRUCTION);
     }
 
-    public async summarizeEvents(items: Map<string, BriefNews>): Promise<Map<string, BriefNews>> {
+    public async summarizeEvents(items: Map<string, BriefNewsLike>): Promise<Map<string, BriefNewsLike>> {
         if (items.size === 0)
             return items;
         const payload: string = JSON.stringify([...items.values()]);

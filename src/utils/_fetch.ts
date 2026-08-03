@@ -62,7 +62,7 @@
 
 import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
-import { BriefNews, type NewsCategory } from "../types/brief_news.entity.js";
+import { type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
 import { FetchError, ParseError, logExpectedError } from "./errors.js";
 import { type FetchOptions } from "../types/config.schema.js";
 
@@ -193,17 +193,17 @@ function parseSourceDate(dateStr: string): Date {
 
 // ─── BriefNews Factory ──────────────────────────────────────
 
-function toBriefNews(item: RawNewsItem, sourceName: string): BriefNews {
-    const news = new BriefNews();
-    news.hash_id = generateHashId(item.url, sourceName, item.title);
-    news.url = item.url;
-    news.title = item.title;
-    news.source_date = parseSourceDate(item.time);
-    news.source_name = sourceName;
-    news.category = item.category;
-    if (item.raw) news.raw = item.raw;
-    // bullets, created_at intentionally left unset
-    return news;
+function toBriefNews(item: RawNewsItem, sourceName: string): BriefNewsLike {
+    return {
+        hash_id: generateHashId(item.url, sourceName, item.title),
+        url: item.url,
+        title: item.title,
+        source_date: parseSourceDate(item.time),
+        source_name: sourceName,
+        category: item.category,
+        raw: item.raw,
+        created_at: new Date()
+    };
 }
 
 // ─── HTTP Utilities ──────────────────────────────────────────
@@ -708,7 +708,7 @@ async function fetchAndExtractHtml(
     sourceName: string,
     extractor: (html: string) => RawNewsItem[],
     options?: FetchOptions,
-): Promise<BriefNews[]> {
+): Promise<BriefNewsLike[]> {
     try {
         const html = await fetchText(url, options);
         return extractor(html).map((item) => toBriefNews(item, sourceName));
@@ -721,23 +721,23 @@ async function fetchAndExtractHtml(
     }
 }
 
-async function fetchBbc(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchBbc(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.bbc.com/news", "BBC", extractBbc, options);
 }
 
-async function fetchBbcSport(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchBbcSport(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.bbc.com/sport", "BBC Sport", extractBbcSport, options);
 }
 
-async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://edition.cnn.com/world", "CNN", extractCnn, options);
 }
 
-async function fetchCnnSport(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchCnnSport(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://edition.cnn.com/sport", "CNN", extractCnn, options);
 }
 
-async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchMarca(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml(
         "https://www.marca.com/en/football/real-madrid.html",
         "Marca",
@@ -746,7 +746,7 @@ async function fetchMarca(options?: FetchOptions): Promise<BriefNews[]> {
     );
 }
 
-async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchF1(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml(
         "https://www.formula1.com/en/latest.html",
         "Formula 1",
@@ -755,7 +755,7 @@ async function fetchF1(options?: FetchOptions): Promise<BriefNews[]> {
     );
 }
 
-async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml(
         "https://techcrunch.com/category/artificial-intelligence/",
         "TechCrunch",
@@ -766,15 +766,15 @@ async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNews[]> {
 
 
 
-async function fetchThepaper(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchThepaper(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.thepaper.cn", "澎湃新闻", extractThepaper, options);
 }
 
-async function fetchNfnews(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchNfnews(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.nfnews.com", "南方都市报", extractNfnews, options);
 }
 
-async function fetchRacefans(options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchRacefans(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.racefans.net", "RaceFans", extractRacefans, options);
 }
 
@@ -833,7 +833,7 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
     },
 };
 
-async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<BriefNews[]> {
+async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<BriefNewsLike[]> {
     const config = RSS_FEEDS[feedKey];
     if (!config) throw new Error(`Unknown RSS feed: ${feedKey}`);
 
@@ -850,7 +850,7 @@ async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<Br
         const urlsToResolve = rawItems.slice(0, limit).map((item) => item.url);
         const resolved = await resolveGoogleNewsUrls(urlsToResolve, options);
 
-        const results: BriefNews[] = [];
+        const results: BriefNewsLike[] = [];
         for (let i = 0; i < rawItems.length; i++) {
             const item = rawItems[i]!;
             if (i < resolved.length) {
@@ -883,7 +883,7 @@ async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<Br
 
 // ─── Category Mapping & Unified Entry ────────────────────────
 
-type SourceFetcher = (options?: FetchOptions) => Promise<BriefNews[]>;
+type SourceFetcher = (options?: FetchOptions) => Promise<BriefNewsLike[]>;
 
 const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
     international: [
@@ -935,14 +935,14 @@ interface FetchArguments {
  * Sources run concurrently. Expected errors per source yield empty results
  * without affecting other sources. Results are deduplicated by canonical URL.
  */
-export async function fetchNewsByCategory({ category, options }: FetchArguments): Promise<Map<string, BriefNews>> {
+export async function fetchNewsByCategory({ category, options }: FetchArguments): Promise<Map<string, BriefNewsLike>> {
     const sources = CATEGORY_SOURCES[category];
     if (!sources) {
         throw new TypeError(`Invalid or unsupported category: ${category}`);
     }
 
     const settled = await Promise.allSettled(sources.map((fn) => fn(options)));
-    const allNews = new Map<string, BriefNews>();
+    const allNews = new Map<string, BriefNewsLike>();
     const seenUrls = new Set<string>();
 
     for (const result of settled) {

@@ -1,10 +1,10 @@
 import OpenAI from "openai";
-import { type AIClient } from "../types/ai_client.interface.js";
+import { AIClient } from "../types/ai_client.js";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
 import { AICientConfigSchema, type AICientConfig } from "../types/config.schema.js";
 
-export class OpenAIClient implements AIClient {
+export class OpenAIClient extends AIClient {
 
     private readonly model: string;
     private readonly client: OpenAI;
@@ -12,6 +12,7 @@ export class OpenAIClient implements AIClient {
     private context: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     constructor(config: AICientConfig) {
+        super();
         const valid_config = AICientConfigSchema.parse(config);
         this.client = new OpenAI({
             apiKey: valid_config.api_key,
