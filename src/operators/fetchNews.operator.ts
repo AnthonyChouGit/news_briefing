@@ -12,7 +12,7 @@ const FetchNewsInputSchema = z.object({
 type FetchNewsInput = z.infer<typeof FetchNewsInputSchema>;
 
 const FetchNewsOutputSchema = z.object({
-    fetched_items: z.map(NewsCategorySchema, z.map(z.string(), BriefNewsLikeSchema))
+    fetched_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
 });
 type FetchNewsOutput = z.infer<typeof FetchNewsOutputSchema>;
 

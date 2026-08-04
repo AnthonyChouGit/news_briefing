@@ -12,7 +12,7 @@ const ReadNewsInputSchema = z.object({
 type ReadNewsInput = z.infer<typeof ReadNewsInputSchema>;
 
 const ReadNewsOutputSchema = z.object({
-    read_items: z.map(NewsCategorySchema, z.map(z.string(), BriefNewsLikeSchema))
+    read_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
 });
 type ReadNewsOutput = z.infer<typeof ReadNewsOutputSchema>;
 
@@ -28,11 +28,11 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
         const { news_reader, thread_pool } = requires as ReadNewsRequires;
         const read_options = options as ReadOptions;
         const read_items: Map<NewsCategory, Map<string, BriefNewsLike>> = await news_reader.read(fetched_items, thread_pool, read_options);
-        const op_output: ReadNewsOutput = ReadNewsOutputSchema.parse({ read_items });
+        const op_output: ReadNewsOutput = { read_items };
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 2, err_obj: err };
-        return { branch: "error", output: ErrorInfoSchema.parse({ err_output }) };
+        return { branch: "error", output: { err_output } };
     }
 }
 

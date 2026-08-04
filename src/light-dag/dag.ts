@@ -107,7 +107,7 @@ export class LightDag {
             const parsed_requires = op.requires_schema.parse(context);
             const parsed_options = op.options_schema.parse(options);
             let op_output: OperatorOutput;
-            const op_input_arg: OperatorArgs = OperatorArgsSchema.parse({ inputs: parsed_inputs, requires: parsed_requires, options: parsed_options });
+            const op_input_arg: OperatorArgs = { inputs: parsed_inputs, requires: parsed_requires, options: parsed_options };
             if (typeof op.exec === "string") {
                 if (!this.pool)
                     throw new Error(`Worker pool not initialized for node ${name}`);

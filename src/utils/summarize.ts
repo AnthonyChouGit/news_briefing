@@ -21,11 +21,8 @@ Bullet point rules:
 Respond with ONLY the JSON array. Do not include any other text, explanation, or formatting.`;
 
 export class NewsSummarizer {
-    constructor(private readonly summary_ai_client: AIClient) {
-        this.summary_ai_client.setInstruction(SUMMARIZE_INSTRUCTION);
-    }
 
-    public async summarizeEvents(items: Map<string, BriefNewsLike>): Promise<Map<string, BriefNewsLike>> {
+    public async summarizeEvents(items: Map<string, BriefNewsLike>, ai_client: AIClient): Promise<Map<string, BriefNewsLike>> {
         if (items.size === 0)
             return items;
         const payload: string = JSON.stringify([...items.values()]);
@@ -36,7 +33,7 @@ export class NewsSummarizer {
             })
         ).length(items.size);
 
-        const res_data = await this.summary_ai_client.ask(payload, res_schema);
+        const res_data = await ai_client.ask(payload, SUMMARIZE_INSTRUCTION, res_schema);
 
         // Actually enforce the Zod validation!
         const items_bullets = res_schema.parse(JSON.parse(res_data));

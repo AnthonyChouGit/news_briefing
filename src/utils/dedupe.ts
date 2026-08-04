@@ -18,9 +18,6 @@ EXCEPTION — New Developments: If a fetched article covers the same event as a 
 Respond with a JSON array containing ONLY the hash_id values of the redundant articles from the "fetched" list. If no articles are redundant, respond with an empty array [].`;
 
 export class EventDeduplicator {
-    constructor(private readonly ai_client: AIClient) {
-        this.ai_client.setInstruction(DEDUPE_INSTRUCTION);
-    }
 
     public dedupeById(items: Map<string, BriefNewsLike>, covered_ids: string[]): Map<string, BriefNewsLike> {
         covered_ids.forEach((hash_id) => {
@@ -29,7 +26,7 @@ export class EventDeduplicator {
         return items;
     }
 
-    public async dedupeByEventasync(items: Map<string, BriefNewsLike>, covered_items: Map<string, BriefNewsLike>): Promise<Map<string, BriefNewsLike>> {
+    public async dedupeByEventasync(items: Map<string, BriefNewsLike>, covered_items: Map<string, BriefNewsLike>, ai_client: AIClient): Promise<Map<string, BriefNewsLike>> {
         if (items.size === 0 || covered_items.size === 0)
             return items;
 
@@ -39,7 +36,7 @@ export class EventDeduplicator {
             covered: [...covered_items.values()]
         };
         const payload_json = JSON.stringify(payload);
-        const response: string = await this.ai_client.ask(payload_json, res_schema);
+        const response: string = await ai_client.ask(payload_json, DEDUPE_INSTRUCTION, res_schema);
         const deduped_ids = res_schema.parse(JSON.parse(response));
         this.dedupeById(items, deduped_ids);
         return items;

@@ -3,7 +3,7 @@ import { type ZodObject, z } from "zod";
 export const OperatorArgsSchema = z.object({
     inputs: z.record(z.string(), z.unknown()).default({}),
     requires: z.record(z.string(), z.unknown()).default({}),
-    options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({})
+    options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.undefined()])).default({})
 });
 export type OperatorArgs = z.infer<typeof OperatorArgsSchema>;
 

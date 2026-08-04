@@ -1,10 +1,13 @@
 import { type Piscina } from "piscina";
 import { type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
-// import { FetchError, logExpectedError } from "./errors.js";
-import { type FetchOptions, FetchOptionsSchema } from "../types/config.schema.js";
+import { type FetchOptions } from "../types/config.schema.js";
 
 export class NewsFetcher {
     public async fetch(categories: NewsCategory[], pool: Piscina, fetchOptions: FetchOptions): Promise<Map<NewsCategory, Map<string, BriefNewsLike>>> {
+        if (categories.length === 0) {
+            throw new Error("Categories array cannot be empty.");
+        }
+
         const tasks = categories.map((category: NewsCategory) =>
             pool.run({ category, options: fetchOptions },
                 { name: 'fetchNewsByCategory', filename: new URL('./_fetch.js', import.meta.url).href })
@@ -18,14 +21,20 @@ export class NewsFetcher {
             const category: NewsCategory = categories[i]!;
 
             if (result.status === 'rejected') {
-                // logExpectedError(new FetchError(`[Fetch] Failed to fetch news for category: ${category} due to ${result.reason}`));
-                // continue;
-                throw result.reason;
+                console.error(`\n🚨🚨🚨 [FETCH ERROR] Failed to fetch category "${category}" 🚨🚨🚨`);
+                console.error(result.reason);
+                console.error(`=========================================================\n`);
+                continue;
             }
 
             const category_items: Map<string, BriefNewsLike> = result.value;
             all_categories.set(category, category_items);
         }
+
+        if (all_categories.size === 0) {
+            throw new Error("All categories failed to fetch.");
+        }
+
         return all_categories;
     }
 }

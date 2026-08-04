@@ -8,8 +8,6 @@ export class OpenAIClient extends AIClient {
 
     private readonly model: string;
     private readonly client: OpenAI;
-    private instruction: string | undefined;
-    private context: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     constructor(config: AICientConfig) {
         super();
@@ -21,16 +19,17 @@ export class OpenAIClient extends AIClient {
             maxRetries: valid_config.max_retries
         });
         this.model = valid_config.model;
-        this.instruction = valid_config.instruction;
-        this.clearContext();
     }
 
-    public async ask<T extends ZodType>(prompt: string, response_schema?: T, save_context: boolean = false): Promise<string> {
-        if (save_context)
-            this.context.push({ role: "user", content: prompt });
+    public async ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string> {
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        if (instruction) {
+            messages.push({ role: "system", content: instruction });
+        }
+        messages.push({ role: "user", content: prompt });
         const response = await this.client.chat.completions.create({
             model: this.model,
-            messages: this.context,
+            messages: messages,
             ...(response_schema ? { response_format: zodResponseFormat(response_schema, "Response Schema") } : {})
         });
         // console.log("RAW RESPONSE:", JSON.stringify(response, null, 2));
@@ -41,20 +40,7 @@ export class OpenAIClient extends AIClient {
             const errorMessage = message?.refusal || `Unexpected response format from AI: ${JSON.stringify(response)}`;
             throw new Error(errorMessage);
         }
-        if (save_context)
-            this.context.push(message);
         return content;
-    }
-
-    public clearContext(): void {
-        this.context = [];
-        if (this.instruction)
-            this.context.push({ role: "system", content: this.instruction });
-    }
-
-    public setInstruction(instruction: string): void {
-        this.instruction = instruction;
-        this.clearContext();
     }
 }
 
