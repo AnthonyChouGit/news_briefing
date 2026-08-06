@@ -1,5 +1,5 @@
 import { Repository, MoreThanOrEqual } from "typeorm";
-import { NewsHistory } from "../types/history.js";
+import { NewsHistory } from "../types/news_history.base.js";
 import { BriefNews, type BriefNewsLike } from "../types/brief_news.entity.js";
 
 export class TypeOrmNewsHistory extends NewsHistory {

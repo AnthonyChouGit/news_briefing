@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { AIClient } from "../types/ai_client.js";
+import { AIClient } from "../types/ai_client.base.js";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
 import { AICientConfigSchema, type AICientConfig } from "../types/config.schema.js";

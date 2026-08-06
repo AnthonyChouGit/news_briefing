@@ -1,5 +1,5 @@
 import type { BriefNewsLike } from "../types/brief_news.entity.js";
-import { type AIClient } from "../types/ai_client.js";
+import { type AIClient } from "../types/ai_client.base.js";
 import * as z from "zod";
 
 const DEDUPE_INSTRUCTION = `You are a news deduplication engine. You will receive a JSON object with two arrays:
@@ -26,7 +26,7 @@ export class EventDeduplicator {
         return items;
     }
 
-    public async dedupeByEventasync(items: Map<string, BriefNewsLike>, covered_items: Map<string, BriefNewsLike>, ai_client: AIClient): Promise<Map<string, BriefNewsLike>> {
+    public async dedupeByEvent(items: Map<string, BriefNewsLike>, covered_items: Map<string, BriefNewsLike>, ai_client: AIClient): Promise<Map<string, BriefNewsLike>> {
         if (items.size === 0 || covered_items.size === 0)
             return items;
 
