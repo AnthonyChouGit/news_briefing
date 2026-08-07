@@ -24,4 +24,16 @@ export abstract class Operator {
     abstract exec:
         | ((args: OperatorArgs) => Promise<OperatorOutput>)
         | string;
+
+    public mapInput(schema_name: string, global_name: string): void {
+        if (!this.input_map)
+            this.input_map = {};
+        this.input_map[schema_name] = global_name;
+    }
+
+    public mapOutput(schema_name: string, global_name: string): void {
+        if (!this.output_map)
+            this.output_map = {};
+        this.output_map[schema_name] = global_name;
+    }
 }

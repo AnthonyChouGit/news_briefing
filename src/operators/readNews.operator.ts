@@ -7,7 +7,7 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
 
 const ReadNewsInputSchema = z.object({
-    fetched_items: z.map(NewsCategorySchema, z.map(z.string(), BriefNewsLikeSchema))
+    read_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
 });
 type ReadNewsInput = z.infer<typeof ReadNewsInputSchema>;
 
@@ -24,14 +24,14 @@ type ReadNewsRequires = z.infer<typeof ReadNewsRequiresSchema>;
 
 export default async function readNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
-        const { fetched_items } = inputs as ReadNewsInput;
+        const { read_input_items } = inputs as ReadNewsInput;
         const { news_reader, thread_pool } = requires as ReadNewsRequires;
         const read_options = options as ReadOptions;
-        const read_items: Map<NewsCategory, Map<string, BriefNewsLike>> = await news_reader.read(fetched_items, thread_pool, read_options);
+        const read_items: Map<NewsCategory, Map<string, BriefNewsLike>> = await news_reader.read(read_input_items, thread_pool, read_options);
         const op_output: ReadNewsOutput = { read_items };
         return { branch: "default", output: op_output };
     } catch (err) {
-        const err_output: ErrorInfo = { err_code: 2, err_obj: err };
+        const err_output: ErrorInfo = { err_code: 4, err_obj: err };
         return { branch: "error", output: { err_output } };
     }
 }
