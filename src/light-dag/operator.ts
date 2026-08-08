@@ -14,7 +14,7 @@ export const OperatorOutputSchema = z.object({
 export type OperatorOutput = z.infer<typeof OperatorOutputSchema>;
 
 export abstract class Operator {
-    abstract name: string;
+    name: string = "operator";
     abstract input_schema: ZodObject;
     abstract output_schemas: Record<string, ZodObject>;
     requires_schema: z.ZodType<Record<string, unknown>> = z.object({}).default({});
@@ -35,5 +35,14 @@ export abstract class Operator {
         if (!this.output_map)
             this.output_map = {};
         this.output_map[schema_name] = global_name;
+    }
+
+    constructor(name?: string, input_map?: Record<string, string>, output_map?: Record<string, string>) {
+        if (name)
+            this.name = name;
+        if (input_map)
+            this.input_map = input_map;
+        if (output_map)
+            this.output_map = output_map;
     }
 }

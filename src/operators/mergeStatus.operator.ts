@@ -36,8 +36,7 @@ export class MergeStatusOperator extends Operator {
     exec = mergeStatus;
 
     constructor(name: string, status_names: string[], fulfill_name?: string) {
-        super();
-        this.name = name;
+        super(name);
         this.input_schema = MergeStatusInputSchema(status_names);
         if (fulfill_name)
             this.mapOutput("fulfilled", fulfill_name);
