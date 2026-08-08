@@ -31,8 +31,8 @@ export default async function saveNews({ inputs, requires }: OperatorArgs): Prom
         const op_output: SaveNewsOutput = { saved: true };
         return { branch: "default", output: op_output };
     } catch (err) {
-        const err_output: ErrorInfo = { err_code: 7, err_obj: err };
-        return { branch: "error", output: { err_output } };
+        const err_output: ErrorInfo = { err_code: 9, err_obj: err };
+        return { branch: "error", output: err_output };
     }
 }
 

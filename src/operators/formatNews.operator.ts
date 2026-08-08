@@ -34,7 +34,7 @@ export default async function formatNews({ inputs, requires, options }: Operator
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 7, err_obj: err };
-        return { branch: "error", output: { err_output } };
+        return { branch: "error", output: err_output };
     }
 }
 

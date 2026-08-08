@@ -32,7 +32,7 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 4, err_obj: err };
-        return { branch: "error", output: { err_output } };
+        return { branch: "error", output: err_output };
     }
 }
 

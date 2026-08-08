@@ -40,7 +40,7 @@ export default async function summarizeNews({ inputs, requires, options }: Opera
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 5, err_obj: err };
-        return { branch: "error", output: { err_output } };
+        return { branch: "error", output: err_output };
     }
 }
 

@@ -40,7 +40,7 @@ export default async function truncateNews({ inputs, options }: OperatorArgs): P
         return { branch: "default", output: { truncated_items } };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 3, err_obj: err };
-        return { branch: "error", output: { err_output } };
+        return { branch: "error", output: err_output };
     }
 }
 
