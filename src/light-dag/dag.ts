@@ -6,10 +6,12 @@ export class LightDag {
     private readonly operators: Map<string, Operator>;
     private readonly task_names: Set<string>;
     private debug: boolean;
+    private timeout?: number | undefined;
 
-    constructor(operators: Operator[], worker_pool?: Piscina, debug?: boolean) {
+    constructor(operators: Operator[], worker_pool?: Piscina, debug?: boolean, timeout?: number) {
         this.pool = worker_pool;
         this.debug = debug ?? false;
+        this.timeout = timeout;
         this.operators = new Map<string, Operator>();
         this.task_names = new Set<string>();
         for (const op of operators) {
@@ -26,6 +28,10 @@ export class LightDag {
 
     public setDebug(enabled: boolean): void {
         this.debug = enabled;
+    }
+
+    public setTimeout(timeout: number): void {
+        this.timeout = timeout;
     }
 
     private log(...args: unknown[]): void {
@@ -68,6 +74,8 @@ export class LightDag {
             resolves.set(task, { resolve, reject });
         }
         this.log("run() started, operators:", [...this.operators.keys()]);
+        if (this.timeout)
+            setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
         for (const op_name of this.operators.keys())
             this.runNode(op_name, tasks, resolves, context, options?.[op_name]);
         for (const [input_name, input_value] of Object.entries(inputs)) {
