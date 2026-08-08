@@ -39,6 +39,27 @@ export class LightDag {
         context?: Record<string, unknown>,
         options?: Record<string, Record<string, string | number | boolean>>
     ) {
+        if (this.debug) {
+            const consumed = new Set<string>();
+            const produced = new Set<string>();
+            for (const op of this.operators.values()) {
+                for (const name of Object.keys(op.input_schema.shape))
+                    consumed.add(op.input_map?.[name] ?? name);
+                for (const branchSchema of Object.values(op.output_schemas))
+                    for (const name of Object.keys(branchSchema.shape))
+                        produced.add(op.output_map?.[name] ?? name);
+            }
+            const provided_inputs = new Set(Object.keys(inputs));
+            const requested_outputs = new Set(outputs);
+            for (const name of produced) {
+                if (!consumed.has(name) && !requested_outputs.has(name))
+                    console.warn(`[LightDag] Warning: task "${name}" is produced but never consumed by any operator or requested as output`);
+            }
+            for (const name of consumed) {
+                if (!produced.has(name) && !provided_inputs.has(name))
+                    console.warn(`[LightDag] Warning: task "${name}" is consumed but never produced by any operator or provided as input`);
+            }
+        }
         const tasks = new Map<string, Promise<unknown>>();
         const resolves = new Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>();
         for (const task of this.task_names) {
