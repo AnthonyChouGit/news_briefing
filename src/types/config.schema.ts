@@ -70,6 +70,12 @@ export const TruncateNewsOptionsSchema = z.object({
 
 export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 
+export const TelegramConfigSchema = z.object({
+    token: z.string().nonempty()
+});
+
+export type TelegramConfig = z.infer<typeof TelegramConfigSchema>;
+
 export const ConfigSchema = DbConfigSchema
     .and(AICientConfigSchema)
     .and(FetchOptionsSchema)
@@ -78,6 +84,7 @@ export const ConfigSchema = DbConfigSchema
     .and(HistoryNewsOptionsSchema)
     .and(SendNewsOptionsSchema)
     .and(SummarizeNewsOptionsSchema)
-    .and(TruncateNewsOptionsSchema);
+    .and(TruncateNewsOptionsSchema)
+    .and(TelegramConfigSchema);
 
 export type Config = z.infer<typeof ConfigSchema>;

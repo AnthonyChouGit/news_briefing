@@ -4,9 +4,9 @@ import { Bot } from "grammy";
 export class GrammyTelegramClient extends TelegramClient {
     private readonly bot: Bot;
 
-    constructor(token: string) {
+    constructor(config: { token: string }) {
         super();
-        this.bot = new Bot(token);
+        this.bot = new Bot(config.token);
     }
 
     async sendMessage(channel: string, message: string, options?: { parse_mode?: TelegramParseMode }): Promise<void> {
