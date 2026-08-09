@@ -2,6 +2,7 @@ import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
 import { type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { TruncateNewsOptionsSchema, type TruncateNewsOptions } from "../types/config.schema.js";
 
 const TruncateNewsInputSchema = z.object({
     truncate_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
@@ -12,11 +13,6 @@ const TruncateNewsOutputSchema = z.object({
     truncated_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
 });
 type TruncateNewsOutput = z.infer<typeof TruncateNewsOutputSchema>;
-
-const TruncateNewsOptionsSchema = z.object({
-    max_items_per_category: z.number().int().positive().optional().default(5)
-});
-type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 
 export default async function truncateNews({ inputs, options }: OperatorArgs): Promise<OperatorOutput> {
     try {

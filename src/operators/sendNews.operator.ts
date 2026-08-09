@@ -1,8 +1,9 @@
 import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { TelegramClient, TelegramParseModeSchema } from "../types/telegram_client.base.js";
+import { TelegramClient } from "../types/telegram_client.base.js";
 import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
 import { logExpectedError } from "../utils/errors.js";
+import { SendNewsOptionsSchema, type SendNewsOptions } from "../types/config.schema.js";
 
 const SendNewsInputSchema = z.object({
     news_text: z.string().nonempty(),
@@ -19,11 +20,6 @@ const SendNewsRequiresSchema = z.object({
     send_client: z.instanceof(TelegramClient)
 });
 type SendNewsRequires = z.infer<typeof SendNewsRequiresSchema>;
-
-const SendNewsOptionsSchema = z.object({
-    parse_mode: TelegramParseModeSchema
-});
-type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
 
 export default async function sendNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {

@@ -1,7 +1,7 @@
 import { Operator, type OperatorArgs, type OperatorOutput } from "../light-dag/operator.js";
 import { NewsFetcher } from "../utils/fetch.js";
 import * as z from "zod";
-import { BriefNewsLikeSchema, NewsCategorySchema, type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
+import { NewsCategorySchema, type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
 import { Piscina } from "piscina";
 import { ErrorInfoSchema, type ErrorInfo } from "../types/error.schema.js";
 import { FetchOptionsSchema, type FetchOptions } from "../types/config.schema.js";

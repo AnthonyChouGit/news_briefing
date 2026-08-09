@@ -3,6 +3,7 @@ import { type NewsCategory, NewsCategorySchema, type BriefNewsLike } from "../ty
 import { NewsHistory } from "../types/news_history.base.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { ErrorInfoSchema, type ErrorInfo } from "../types/error.schema.js";
+import { HistoryNewsOptionsSchema, type HistoryNewsOptions } from "../types/config.schema.js";
 
 const HistoryNewsInputSchema = z.object({
     categories: z.array(NewsCategorySchema).nonempty()
@@ -19,11 +20,6 @@ const HistoryNewsRequiresSchema = z.object({
     history_fetcher: z.instanceof(NewsHistory)
 });
 type HistoryNewsRequires = z.infer<typeof HistoryNewsRequiresSchema>;
-
-const HistoryNewsOptionsSchema = z.object({
-    time_window_days: z.number().positive().default(3)
-});
-type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
 
 export default async function historyNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {

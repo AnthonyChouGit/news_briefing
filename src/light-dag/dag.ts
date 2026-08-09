@@ -2,14 +2,12 @@ import { type Piscina } from "piscina";
 import { type Operator, type OperatorArgs, type OperatorOutput, OperatorArgsSchema, OperatorOutputSchema } from "./operator.js";
 
 export class LightDag {
-    private readonly pool: Piscina | undefined;
     private readonly operators: Map<string, Operator>;
     private readonly task_names: Set<string>;
     private debug: boolean;
     private timeout?: number | undefined;
 
-    constructor(operators: Operator[], worker_pool?: Piscina, debug?: boolean, timeout?: number) {
-        this.pool = worker_pool;
+    constructor(operators: Operator[], debug?: boolean, timeout?: number) {
         this.debug = debug ?? false;
         this.timeout = timeout;
         this.operators = new Map<string, Operator>();
@@ -43,7 +41,8 @@ export class LightDag {
         inputs: Record<string, unknown>,
         outputs: string[],
         context?: Record<string, unknown>,
-        options?: Record<string, Record<string, string | number | boolean>>
+        options?: Record<string, Record<string, unknown>>,
+        pool?: Piscina
     ) {
         if (this.debug) {
             const consumed = new Set<string>();
@@ -77,7 +76,7 @@ export class LightDag {
         if (this.timeout)
             setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
         for (const op_name of this.operators.keys())
-            this.runNode(op_name, tasks, resolves, context, options?.[op_name]);
+            this.runNode(op_name, tasks, resolves, context, options?.[op_name], pool);
         for (const [input_name, input_value] of Object.entries(inputs)) {
             const entry = resolves.get(input_name);
             if (!entry)
@@ -105,7 +104,8 @@ export class LightDag {
         tasks: Map<string, Promise<unknown>>,
         resolves: Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>,
         context?: Record<string, unknown>,
-        options?: Record<string, string | number | boolean>
+        options?: Record<string, unknown>,
+        pool?: Piscina
     ): Promise<void> {
         let all_global_output_names: string[] = [];
         try {
@@ -138,9 +138,9 @@ export class LightDag {
             let op_output: OperatorOutput;
             const op_input_arg: OperatorArgs = { inputs: parsed_inputs, requires: parsed_requires, options: parsed_options };
             if (typeof op.exec === "string") {
-                if (!this.pool)
+                if (!pool)
                     throw new Error(`Worker pool not initialized for node ${name}`);
-                op_output = await this.pool.run(op_input_arg, { filename: op.exec });
+                op_output = await pool.run(op_input_arg, { filename: op.exec });
             } else {
                 op_output = await op.exec(op_input_arg);
             }

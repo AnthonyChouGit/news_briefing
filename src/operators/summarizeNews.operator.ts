@@ -2,9 +2,9 @@ import * as z from "zod";
 import { type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
 import { NewsSummarizer } from "../utils/summarize.js";
 import { AIClient } from "../types/ai_client.base.js";
-import { LanguageSchema } from "../types/language.enum.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
+import { SummarizeNewsOptionsSchema, type SummarizeNewsOptions } from "../types/config.schema.js";
 
 const SummarizeNewsInputSchema = z.object({
     summarize_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
@@ -21,11 +21,6 @@ const SummarizeNewsRequiresSchema = z.object({
     ai_client: z.instanceof(AIClient)
 });
 type SummarizeNewsRequires = z.infer<typeof SummarizeNewsRequiresSchema>;
-
-const SummarizeNewsOptionsSchema = z.object({
-    language: LanguageSchema
-});
-type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
 
 export default async function summarizeNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {

@@ -1,4 +1,6 @@
 import * as z from "zod";
+import { LanguageSchema } from "./language.enum.js";
+import { TelegramParseModeSchema } from "./telegram_client.base.js";
 
 export const DbConfigSchema = z.object({
     database_host: z.string().nonempty().default("localhost"),
@@ -37,3 +39,45 @@ export const ReadOptionsSchema = z.object({
 }).default({});
 
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
+
+export const FormatNewsOptionsSchema = z.object({
+    language: LanguageSchema
+});
+
+export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
+
+export const HistoryNewsOptionsSchema = z.object({
+    time_window_days: z.number().positive().default(3)
+});
+
+export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
+
+export const SendNewsOptionsSchema = z.object({
+    parse_mode: TelegramParseModeSchema
+});
+
+export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
+
+export const SummarizeNewsOptionsSchema = z.object({
+    language: LanguageSchema
+});
+
+export type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
+
+export const TruncateNewsOptionsSchema = z.object({
+    max_items_per_category: z.number().int().positive().optional().default(5)
+});
+
+export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
+
+export const ConfigSchema = DbConfigSchema
+    .and(AICientConfigSchema)
+    .and(FetchOptionsSchema)
+    .and(ReadOptionsSchema)
+    .and(FormatNewsOptionsSchema)
+    .and(HistoryNewsOptionsSchema)
+    .and(SendNewsOptionsSchema)
+    .and(SummarizeNewsOptionsSchema)
+    .and(TruncateNewsOptionsSchema);
+
+export type Config = z.infer<typeof ConfigSchema>;
