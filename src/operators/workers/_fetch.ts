@@ -31,8 +31,8 @@
  * ### Error Handling
  * 
  * **1. Expected Errors (Network & Parsing)**
- * The module throws {@link FetchError} for network issues (e.g. timeouts, 403 blocks) 
- * and {@link ParseError} for unexpected HTML/JSON structures.
+ * The module throws {@link Error} for network issues (e.g. timeouts, 403 blocks) 
+ * and {@link Error} for unexpected HTML/JSON structures.
  * 
  * *Note:* {@link fetchNewsByCategory} catches these expected errors internally on a 
  * per-source basis. If a single source fails, it silently falls back to returning an 
@@ -62,9 +62,9 @@
 
 import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
-import { type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
-import { FetchError, ParseError, logExpectedError } from "./errors.js";
-import { type FetchOptions } from "../types/config.schema.js";
+import { type BriefNewsLike, type NewsCategory } from "../../types/brief_news.entity.js";
+import { logExpectedError } from "../common/errors.js";
+import { type FetchOptions } from "../../types/config.schema.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ async function fetchText(url: string, options?: FetchOptions): Promise<string> {
         return response.data;
     } catch (error) {
         if (error instanceof AxiosError) {
-            throw new FetchError(
+            throw new Error(
                 `Failed to fetch ${url}: ${error.message}`,
                 { cause: error },
             );
@@ -243,7 +243,7 @@ async function fetchJson(url: string, options?: FetchOptions): Promise<unknown> 
         return response.data;
     } catch (error) {
         if (error instanceof AxiosError) {
-            throw new FetchError(
+            throw new Error(
                 `Failed to fetch JSON from ${url}: ${error.message}`,
                 { cause: error },
             );
@@ -316,7 +316,7 @@ async function decodeGoogleNewsParams(
             errors.push(error instanceof Error ? error.constructor.name : "UnknownError");
         }
     }
-    throw new FetchError(`decode_params_failed: ${errors.join(",")}`);
+    throw new Error(`decode_params_failed: ${errors.join(",")}`);
 }
 
 async function decodeOneGoogleNewsUrl(
@@ -356,7 +356,7 @@ async function decodeOneGoogleNewsUrl(
         body = response.data as string;
     } catch (error) {
         if (error instanceof AxiosError) {
-            throw new FetchError(`Google News decode POST failed: ${error.message}`, { cause: error });
+            throw new Error(`Google News decode POST failed: ${error.message}`, { cause: error });
         }
         throw error;
     }
@@ -389,7 +389,7 @@ async function decodeOneGoogleNewsUrl(
             }
         }
     }
-    throw new FetchError("decode_response_invalid");
+    throw new Error("decode_response_invalid");
 }
 
 async function resolveGoogleNewsUrls(
@@ -713,7 +713,7 @@ async function fetchAndExtractHtml(
         const html = await fetchText(url, options);
         return extractor(html).map((item) => toBriefNews(item, sourceName));
     } catch (error) {
-        if (error instanceof FetchError) {
+        if (error instanceof Error) {
             logExpectedError(error);
             return [];
         }
@@ -873,7 +873,7 @@ async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<Br
         }
         return results;
     } catch (error) {
-        if (error instanceof FetchError) {
+        if (error instanceof Error) {
             logExpectedError(error);
             return [];
         }

@@ -41,9 +41,9 @@
 
 import axios, { AxiosError } from "axios";
 import pLimit from "p-limit";
-import { type BriefNewsLike } from "../types/brief_news.entity.js";
-import { type ReadOptions } from "../types/config.schema.js";
-import { FetchError, ParseError, logExpectedError } from "./errors.js";
+import { type BriefNewsLike } from "../../types/brief_news.entity.js";
+import { type ReadOptions } from "../../types/config.schema.js";
+import { logExpectedError } from "../common/errors.js";
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -348,7 +348,7 @@ async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
         return response.data;
     } catch (error) {
         if (error instanceof AxiosError) {
-            throw new FetchError(`read fetch failed: ${error.message}`, { cause: error });
+            throw new Error(`read fetch failed: ${error.message}`, { cause: error });
         }
         throw error;
     }
@@ -388,23 +388,23 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
         return limit(async () => {
             const extractor = getExtractorForItem(item);
             if (!extractor) {
-                logExpectedError(new ParseError(`No extractor found for item: ${item.title}`));
+                logExpectedError(new Error(`No extractor found for item: ${item.title}`));
                 return;
             }
             if (!item.url?.trim()) {
-                logExpectedError(new ParseError(`Missing or empty URL for item: ${item.title}`));
+                logExpectedError(new Error(`Missing or empty URL for item: ${item.title}`));
                 return;
             }
 
             try {
                 const parsed = new URL(item.url);
                 if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-                    logExpectedError(new ParseError(`Unsupported protocol (${parsed.protocol}) for URL: ${item.url}`));
+                    logExpectedError(new Error(`Unsupported protocol (${parsed.protocol}) for URL: ${item.url}`));
                     return;
                 }
             } catch (error) {
                 // new URL throws TypeError for invalid URLs
-                logExpectedError(new ParseError(`Invalid URL: ${item.url}`));
+                logExpectedError(new Error(`Invalid URL: ${item.url}`));
                 return;
             }
 
@@ -427,7 +427,7 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
                     item.source_date = new Date();
                 }
             } catch (error) {
-                if (error instanceof FetchError || error instanceof ParseError) {
+                if (error instanceof Error) {
                     logExpectedError(error);
                     return;
                 }

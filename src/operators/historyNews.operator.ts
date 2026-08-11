@@ -1,9 +1,11 @@
 import * as z from "zod";
-import { type NewsCategory, NewsCategorySchema, type BriefNewsLike } from "../types/brief_news.entity.js";
-import { NewsHistory } from "../types/news_history.base.js";
+import { Repository, MoreThanOrEqual } from "typeorm";
+import { BriefNews, type NewsCategory, NewsCategorySchema, type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { ErrorInfoSchema, type ErrorInfo } from "../types/error.schema.js";
+import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 import { HistoryNewsOptionsSchema, type HistoryNewsOptions } from "../types/config.schema.js";
+
+
 
 const HistoryNewsInputSchema = z.object({
     categories: z.array(NewsCategorySchema).nonempty()
@@ -16,18 +18,22 @@ const HistoryNewsOutputSchema = z.object({
 type HistoryNewsOutput = z.infer<typeof HistoryNewsOutputSchema>;
 
 const HistoryNewsRequiresSchema = z.object({
-    data_src: z.unknown(),
-    history_fetcher: z.instanceof(NewsHistory)
+    repository: z.instanceof(Repository)
 });
 type HistoryNewsRequires = z.infer<typeof HistoryNewsRequiresSchema>;
 
 export default async function historyNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
         const { categories } = inputs as HistoryNewsInput;
-        const { data_src, history_fetcher } = requires as HistoryNewsRequires;
+        const repository = requires.repository as Repository<BriefNews>;
         const category_promises: Promise<Map<string, BriefNewsLike>>[] = categories.map(async (category: NewsCategory) => {
-            const items: Map<string, BriefNewsLike> = await history_fetcher.fetchHistory(data_src, category, options as HistoryNewsOptions);
-            return items
+            const items: BriefNews[] = await repository.find({
+                where: {
+                    category: category,
+                    source_date: MoreThanOrEqual(new Date(Date.now() - 24 * 60 * 60 * 1000 * (options as HistoryNewsOptions).time_window_days))
+                }
+            });
+            return new Map(items.map(item => [item.hash_id, item]));
         });
         const items = await Promise.all(category_promises);
         const history_items = new Map<NewsCategory, Map<string, BriefNewsLike>>();

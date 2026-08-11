@@ -1,8 +1,11 @@
 import OpenAI from "openai";
-import { AIClient } from "../types/ai_client.base.js";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
 import { AICientConfigSchema, type AICientConfig } from "../types/config.schema.js";
+
+export abstract class AIClient {
+    abstract ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string>;
+}
 
 export class OpenAIClient extends AIClient {
 

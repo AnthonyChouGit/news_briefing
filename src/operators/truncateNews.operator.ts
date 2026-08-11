@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
+import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
 import { TruncateNewsOptionsSchema, type TruncateNewsOptions } from "../types/config.schema.js";
 

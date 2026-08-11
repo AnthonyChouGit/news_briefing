@@ -47,14 +47,14 @@ Fetches raw news articles from external sources across one or more categories. T
 | **Input** | `categories: NewsCategory[]` (non-empty) |
 | **Output (default)** | `fetched_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 1, err_obj }` |
-| **Requires** | `news_fetcher: NewsFetcher`, `thread_pool: Piscina` |
+| **Requires** | `thread_pool: Piscina` |
 | **Options** | `FetchOptions` (fetch configuration such as timeouts, retries, etc.) |
 
 ### Behavior
 
-1. Destructures `categories` from inputs and `news_fetcher` / `thread_pool` from requires.
-2. Calls `news_fetcher.fetch(categories, thread_pool, fetch_options)` which:
-   - Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `fetchNewsByCategory` function from `_fetch.js` in a separate worker thread.
+1. Destructures `categories` from inputs and `thread_pool` from requires.
+2. Calls `fetchAllCategories(categories, thread_pool, fetch_options)` which:
+   - Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `fetchNewsByCategory` function from `workers/_fetch.js` in a separate worker thread.
    - Awaits all tasks with `Promise.allSettled` — individual category failures are logged and skipped, not fatal.
    - Throws only if **all** categories fail to fetch.
 3. Returns the aggregated `Map<NewsCategory, Map<string, BriefNewsLike>>`.
@@ -82,7 +82,7 @@ Removes duplicate news articles by comparing newly fetched items against previou
 | **Input** | `dedupe_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>`, `history_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `deduped_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 2, err_obj }` |
-| **Requires** | `deduplicator: EventDeduplicator`, `ai_client: AIClient` |
+| **Requires** | `ai_client: AIClient` |
 
 ### Behavior
 
@@ -148,22 +148,21 @@ Fetches the full article content (body text) for each previously-fetched brief n
 | **Input** | `read_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `read_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 4, err_obj }` |
-| **Requires** | `news_reader: NewsReader`, `thread_pool: Piscina` |
+| **Requires** | `thread_pool: Piscina` |
 | **Options** | `ReadOptions` (read configuration) |
 
 ### Behavior
 
-1. Calls `news_reader.read(read_input_items, thread_pool, read_options)` which:
-   - Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `readNewsDetails` function from `_read.js`.
-   - Awaits all tasks with `Promise.allSettled` — individual category failures are logged; the failed category is removed from the map.
-   - Throws only if **all** categories fail.
-2. Returns the enriched map (mutated in place — the input map is the same object as the output).
+1. Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `readNewsDetails` function from `workers/_read.js`.
+2. Awaits all tasks with `Promise.allSettled` — individual category failures are logged; the failed category is removed from the map.
+3. Throws only if **all** categories fail.
+4. Returns the enriched map (mutated in place — the input map is the same object as the output).
 
 ### Concurrency Model
 
 **Worker threads (true parallelism).** Identical concurrency model to `FetchNewsOperator`. Each category's articles are read in a separate OS thread via Piscina. Uses `Promise.allSettled` for fault tolerance.
 
-> **Mutation note:** The `NewsReader.read()` method mutates the input `all_categories` map in place (deleting failed categories, replacing entries with enriched items).
+> **Mutation note:** The `readNews` function mutates the input `read_input_items` map in place (deleting failed categories, replacing entries with enriched items).
 
 ---
 
@@ -184,12 +183,12 @@ Generates AI-written bullet-point summaries and rewritten titles for each articl
 | **Input** | `summarize_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `summarized_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 5, err_obj }` |
-| **Requires** | `news_summarizer: NewsSummarizer`, `ai_client: AIClient` |
+| **Requires** | `ai_client: AIClient` |
 | **Options** | `language: Language` |
 
 ### Behavior
 
-1. Creates one promise per category by calling `news_summarizer.summarizeEvents(items, ai_client, language)`.
+1. Creates one promise per category by calling `summarizeEvents(items, ai_client, language)`.
 2. Each `summarizeEvents` call:
    - Sends all articles in the category as a JSON payload to the AI client with a detailed summarization prompt.
    - Expects the AI to return a JSON array with rewritten titles and 3–5 bullet points (10–50 chars each) per article.
@@ -223,13 +222,13 @@ Fetches previously reported news articles from a database (TypeORM repository) w
 | **Input** | `categories: NewsCategory[]` (non-empty) |
 | **Output (default)** | `history_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 6, err_obj }` |
-| **Requires** | `data_src: unknown` (TypeORM `Repository<BriefNews>` at runtime), `history_fetcher: NewsHistory` |
+| **Requires** | `repository: Repository<BriefNews>` |
 | **Options** | `time_window_days: number` (positive, default: `3`) |
 
 ### Behavior
 
-1. Creates one promise per category by calling `history_fetcher.fetchHistory(data_src, category, options)`.
-2. Each `fetchHistory` call queries the database for all `BriefNews` entities matching the category whose `source_date` is within the last `time_window_days` days.
+1. Creates one promise per category.
+2. Each promise queries the database directly via `repository.find()` for all `BriefNews` entities matching the category whose `source_date` is within the last `time_window_days` days.
 3. Awaits all promises with `Promise.all`.
 4. Assembles the results into a new `Map<NewsCategory, Map<string, BriefNewsLike>>`.
 
@@ -256,12 +255,11 @@ Converts the structured news data into a formatted string ready for delivery. Th
 | **Input** | `format_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `formatted_items: string` (non-empty) |
 | **Output (error)** | `ErrorInfo { err_code: 7, err_obj }` |
-| **Requires** | `news_formatter: NewsFormat` |
 | **Options** | `language: Language` |
 
 ### Behavior
 
-1. Calls `news_formatter.formatNews(format_input_items, options)` which (in the `TelegramNewsFormatMD` implementation):
+1. Calls `formatTelegramMarkdown(format_input_items, options)` which:
    - Builds a localized date header from the most recent article's `source_date`.
    - Sorts categories in a preferred display order.
    - For each category, sorts articles by date (newest first) and renders them as Telegram MarkdownV2 with:
@@ -272,7 +270,7 @@ Converts the structured news data into a formatted string ready for delivery. Th
 
 ### Concurrency Model
 
-**Synchronous — no concurrency.** The `TelegramNewsFormatMD.formatNews()` method is synchronous (despite the operator `await`ing it). All string construction happens on the main thread in a single call.
+**Synchronous — no concurrency.** The formatting is synchronous. All string construction happens on the main thread in a single call.
 
 ---
 
@@ -334,14 +332,14 @@ Persists the processed news items to a database (TypeORM repository) for future 
 | **Input** | `save_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `saved: boolean` (default: `true`) |
 | **Output (error)** | `ErrorInfo { err_code: 9, err_obj }` |
-| **Requires** | `data_src: unknown` (TypeORM `Repository<BriefNews>` at runtime), `history_saver: NewsHistory` |
+| **Requires** | `repository: Repository<BriefNews>` |
 
 ### Behavior
 
-1. Creates one promise per category by calling `history_saver.saveHistory(data_src, items)`.
-2. Each `saveHistory` call:
-   - Converts the `BriefNewsLike` map values into TypeORM entities via `data_src.create()`.
-   - Persists them with `data_src.save()`.
+1. Creates one promise per category.
+2. Inside each promise:
+   - Converts the `BriefNewsLike` map values into TypeORM entities via `repository.create()`.
+   - Persists them with `repository.save()`.
 3. Awaits all promises with `Promise.all`.
 4. Returns `{ saved: true }`.
 

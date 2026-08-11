@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { type ErrorInfo, ErrorInfoSchema } from "../types/error.schema.js";
+import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 
 const ErrorOutputSchema = z.object({
     success: z.boolean()
