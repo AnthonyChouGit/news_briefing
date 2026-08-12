@@ -1,5 +1,6 @@
 import * as z from "zod";
-import { type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type NewsCategory } from "../types/news_category.enum.js";
 import { AIClient } from "../utils/ai.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";

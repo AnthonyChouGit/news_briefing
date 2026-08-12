@@ -42,7 +42,7 @@
 import axios, { AxiosError } from "axios";
 import pLimit from "p-limit";
 import { type BriefNewsLike } from "../../types/brief_news.entity.js";
-import { type ReadOptions } from "../../types/config.schema.js";
+import { type ReadOptions } from "../../utils/config.js";
 import { logExpectedError } from "../common/errors.js";
 
 // ─── Constants ───────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { type Config } from "../types/config.schema.js";
+import { type Config } from "./config.js";
 import { DataSource, Repository } from "typeorm";
 import { Piscina } from "piscina";
 import { GrammyTelegramClient } from "./telegram.js";

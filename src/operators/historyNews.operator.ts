@@ -1,9 +1,10 @@
 import * as z from "zod";
 import { Repository, MoreThanOrEqual } from "typeorm";
-import { BriefNews, type NewsCategory, NewsCategorySchema, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { BriefNews, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type NewsCategory, NewsCategorySchema } from "../types/news_category.enum.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
-import { HistoryNewsOptionsSchema, type HistoryNewsOptions } from "../types/config.schema.js";
+import { HistoryNewsOptionsSchema, type HistoryNewsOptions } from "../utils/config.js";
 
 
 

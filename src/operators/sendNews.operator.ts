@@ -3,7 +3,7 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { TelegramClient } from "../utils/telegram.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { logExpectedError } from "./common/errors.js";
-import { SendNewsOptionsSchema, type SendNewsOptions } from "../types/config.schema.js";
+import { SendNewsOptionsSchema, type SendNewsOptions } from "../utils/config.js";
 
 const SendNewsInputSchema = z.object({
     news_text: z.string().nonempty(),

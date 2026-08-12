@@ -1,8 +1,9 @@
 import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
-import { type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
-import { TruncateNewsOptionsSchema, type TruncateNewsOptions } from "../types/config.schema.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type NewsCategory } from "../types/news_category.enum.js";
+import { TruncateNewsOptionsSchema, type TruncateNewsOptions } from "../utils/config.js";
 
 const TruncateNewsInputSchema = z.object({
     truncate_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)

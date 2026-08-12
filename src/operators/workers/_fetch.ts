@@ -62,9 +62,10 @@
 
 import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
-import { type BriefNewsLike, type NewsCategory } from "../../types/brief_news.entity.js";
+import { type BriefNewsLike } from "../../types/brief_news.entity.js";
+import { type NewsCategory } from "../../types/news_category.enum.js";
 import { logExpectedError } from "../common/errors.js";
-import { type FetchOptions } from "../../types/config.schema.js";
+import { type FetchOptions } from "../../utils/config.js";
 
 // ─── Constants ───────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { Entity, Column, CreateDateColumn, PrimaryColumn, Index } from "typeorm";
 import { IsNotEmpty, ArrayMinSize, ArrayMaxSize, IsUrl, IsString, IsOptional, IsDate, IsArray } from "class-validator";
 import * as z from "zod";
+import { NewsCategorySchema, type NewsCategory } from "./news_category.enum.js";
 
 @Entity("brief_news")
 @Index("idx_brief_news_category_source_date", ["category", "source_date"])
@@ -54,9 +55,7 @@ export class BriefNews {
     created_at!: Date;
 }
 
-export const NewsCategorySchema = z.enum(["international", "football", "realmadrid", "f1", "ai", "mlb", "shenzhen", "tabletennis"]);
 
-export type NewsCategory = z.infer<typeof NewsCategorySchema>;
 
 export const BriefNewsLikeSchema = z.object({
     hash_id: z.string().nonempty(),

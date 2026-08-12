@@ -1,9 +1,10 @@
 import { Operator, type OperatorArgs, type OperatorOutput } from "../light-dag/operator.js";
 import * as z from "zod";
-import { NewsCategorySchema, type BriefNewsLike, type NewsCategory } from "../types/brief_news.entity.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
+import { NewsCategorySchema, type NewsCategory } from "../types/news_category.enum.js";
 import { Piscina } from "piscina";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
-import { FetchOptionsSchema, type FetchOptions } from "../types/config.schema.js";
+import { FetchOptionsSchema, type FetchOptions } from "../utils/config.js";
 
 const FetchNewsInputSchema = z.object({
     categories: z.array(NewsCategorySchema).nonempty()

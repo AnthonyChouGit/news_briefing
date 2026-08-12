@@ -1,7 +1,8 @@
 import * as z from "zod";
-import { type NewsCategory, type BriefNewsLike, NewsCategorySchema, BriefNewsLikeSchema } from "../types/brief_news.entity.js";
+import { type BriefNewsLike, BriefNewsLikeSchema } from "../types/brief_news.entity.js";
+import { type NewsCategory, NewsCategorySchema } from "../types/news_category.enum.js";
 import { Piscina } from "piscina";
-import { ReadOptionsSchema, type ReadOptions } from "../types/config.schema.js";
+import { ReadOptionsSchema, type ReadOptions } from "../utils/config.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 

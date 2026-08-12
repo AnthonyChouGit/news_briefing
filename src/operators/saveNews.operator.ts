@@ -1,7 +1,8 @@
 import * as z from "zod";
 import { Repository } from "typeorm";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { BriefNews, type NewsCategory, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { BriefNews, type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type NewsCategory } from "../types/news_category.enum.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 
 
