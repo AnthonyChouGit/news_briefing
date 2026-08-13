@@ -3,7 +3,11 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
-import { FormatNewsOptionsSchema, type FormatNewsOptions } from "../utils/config.js";
+import { LanguageSchema } from "../types/language.enum.js";
+export const FormatNewsOptionsSchema = z.object({
+    language: LanguageSchema
+});
+export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
 import { type Language } from "../types/language.enum.js";
 
 // ── Telegram MarkdownV2 helpers ─────────────────────────────────────

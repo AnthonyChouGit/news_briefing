@@ -4,7 +4,10 @@ import { BriefNews, type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory, NewsCategorySchema } from "../types/news_category.enum.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
-import { HistoryNewsOptionsSchema, type HistoryNewsOptions } from "../utils/config.js";
+export const HistoryNewsOptionsSchema = z.object({
+    time_window_days: z.number().positive().default(3)
+});
+export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
 
 
 

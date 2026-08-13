@@ -3,7 +3,10 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
-import { TruncateNewsOptionsSchema, type TruncateNewsOptions } from "../utils/config.js";
+export const TruncateNewsOptionsSchema = z.object({
+    max_items_per_category: z.number().int().positive().optional().default(5)
+});
+export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 
 const TruncateNewsInputSchema = z.object({
     truncate_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)

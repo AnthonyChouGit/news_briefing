@@ -4,7 +4,12 @@ import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { NewsCategorySchema, type NewsCategory } from "../types/news_category.enum.js";
 import { Piscina } from "piscina";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
-import { FetchOptionsSchema, type FetchOptions } from "../utils/config.js";
+export const FetchOptionsSchema = z.object({
+    timeout: z.coerce.number().int().nonnegative().optional(),
+    maxDecodeItems: z.coerce.number().int().nonnegative().optional(),
+    userAgent: z.string().nonempty().optional()
+}).default({});
+export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
 
 const FetchNewsInputSchema = z.object({
     categories: z.array(NewsCategorySchema).nonempty()

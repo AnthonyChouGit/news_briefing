@@ -1,9 +1,12 @@
 import * as z from "zod";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
-import { TelegramClient } from "../utils/telegram.js";
+import { TelegramClient, TelegramParseModeSchema } from "../utils/telegram.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { logExpectedError } from "./common/errors.js";
-import { SendNewsOptionsSchema, type SendNewsOptions } from "../utils/config.js";
+export const SendNewsOptionsSchema = z.object({
+    parse_mode: TelegramParseModeSchema
+});
+export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
 
 const SendNewsInputSchema = z.object({
     news_text: z.string().nonempty(),

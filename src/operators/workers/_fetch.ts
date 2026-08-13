@@ -65,7 +65,7 @@ import { createHash } from "node:crypto";
 import { type BriefNewsLike } from "../../types/brief_news.entity.js";
 import { type NewsCategory } from "../../types/news_category.enum.js";
 import { logExpectedError } from "../common/errors.js";
-import { type FetchOptions } from "../../utils/config.js";
+import { type FetchOptions } from "../fetchNews.operator.js";
 
 // ─── Constants ───────────────────────────────────────────────
 

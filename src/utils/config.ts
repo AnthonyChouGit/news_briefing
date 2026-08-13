@@ -1,8 +1,13 @@
 import * as z from "zod";
 import dotenv from "dotenv";
-import { LanguageSchema } from "../types/language.enum.js";
-import { TelegramParseModeSchema } from "./telegram.js";
 import { NewsCategorySchema } from "../types/news_category.enum.js";
+import { FetchOptionsSchema } from "../operators/fetchNews.operator.js";
+import { ReadOptionsSchema } from "../operators/readNews.operator.js";
+import { FormatNewsOptionsSchema } from "../operators/formatNews.operator.js";
+import { HistoryNewsOptionsSchema } from "../operators/historyNews.operator.js";
+import { SendNewsOptionsSchema } from "../operators/sendNews.operator.js";
+import { SummarizeNewsOptionsSchema } from "../operators/summarizeNews.operator.js";
+import { TruncateNewsOptionsSchema } from "../operators/truncateNews.operator.js";
 
 export const DbConfigSchema = z.object({
     database_host: z.string().nonempty().default("localhost"),
@@ -22,46 +27,6 @@ export const AICientConfigSchema = z.object({
     max_retries: z.number().int().positive().default(3)
 });
 export type AICientConfig = z.infer<typeof AICientConfigSchema>;
-
-export const FetchOptionsSchema = z.object({
-    timeout: z.coerce.number().int().nonnegative().optional(),
-    maxDecodeItems: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional()
-}).default({});
-export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
-
-export const ReadOptionsSchema = z.object({
-    timeout: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional(),
-    maxBodyChars: z.coerce.number().int().nonnegative().optional(),
-    concurrency: z.coerce.number().int().positive().optional()
-}).default({});
-export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
-
-export const FormatNewsOptionsSchema = z.object({
-    language: LanguageSchema
-});
-export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
-
-export const HistoryNewsOptionsSchema = z.object({
-    time_window_days: z.number().positive().default(3)
-});
-export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
-
-export const SendNewsOptionsSchema = z.object({
-    parse_mode: TelegramParseModeSchema
-});
-export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
-
-export const SummarizeNewsOptionsSchema = z.object({
-    language: LanguageSchema
-});
-export type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
-
-export const TruncateNewsOptionsSchema = z.object({
-    max_items_per_category: z.number().int().positive().optional().default(5)
-});
-export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 
 export const TelegramConfigSchema = z.object({
     token: z.string().nonempty()
