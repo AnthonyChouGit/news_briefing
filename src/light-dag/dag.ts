@@ -72,7 +72,7 @@ export class LightDag {
             tasks.set(task, promise);
             resolves.set(task, { resolve, reject });
         }
-        this.log("run() started, operators:", [...this.operators.keys()]);
+        this.log("run() started");
         if (this.timeout)
             setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
         for (const op_name of this.operators.keys())
@@ -81,7 +81,7 @@ export class LightDag {
             const entry = resolves.get(input_name);
             if (!entry)
                 throw new Error(`Input "${input_name}" not found`);
-            this.log(`resolving input "${input_name}"`);
+
             entry.resolve(input_value);
         }
         const output_promises = outputs.map((output_name) => {
@@ -95,7 +95,7 @@ export class LightDag {
         for (let i = 0; i < outputs.length; i++) {
             output_values[outputs[i]!] = resolved_outputs[i];
         }
-        this.log("run() completed, outputs:", Object.keys(output_values));
+        this.log("run() completed");
         return output_values;
     }
 
@@ -131,7 +131,7 @@ export class LightDag {
             for (let i = 0; i < schema_input_names.length; i++) {
                 inputs[schema_input_names[i]!] = input_results[i];
             }
-            this.log(`operator "${name}" inputs resolved:`, global_input_names);
+            this.log(`[${name}] START — inputs resolved: [${global_input_names.join(", ")}]`);
             const parsed_inputs = op.input_schema.parse(inputs);
             const parsed_requires = op.requires_schema.parse(context);
             const parsed_options = op.options_schema.parse(options);
@@ -158,10 +158,9 @@ export class LightDag {
                     throw new Error(`Resolve not found for output "${global_name}" in node "${name}"`);
                 entry.resolve(parsed_output[schema_name]);
             }
-            this.log(`operator "${name}" completed, outputs:`, global_output_names);
+            this.log(`[${name}] END — outputs produced: [${global_output_names.join(", ")}] (branch: ${op_output.branch})`);
         } catch (err) {
-            console.error(`Operator "${name}" failed:`, err);
-            this.log(`operator "${name}" failed, rejecting outputs:`, all_global_output_names);
+            this.log(`[${name}] END — error, rejecting outputs: [${all_global_output_names.join(", ")}]`, err);
             for (const global_name of all_global_output_names) {
                 resolves.get(global_name)?.reject(err);
             }
