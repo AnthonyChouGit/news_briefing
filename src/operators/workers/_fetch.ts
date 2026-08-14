@@ -60,7 +60,6 @@
  * ```
  */
 
-import axios, { AxiosError } from "axios";
 import { createHash } from "node:crypto";
 import { type BriefNewsLike } from "../../types/brief_news.entity.js";
 import { type NewsCategory } from "../../types/news_category.enum.js";
@@ -211,20 +210,21 @@ function toBriefNews(item: RawNewsItem, sourceName: string): BriefNewsLike {
 
 async function fetchText(url: string, options?: FetchOptions): Promise<string> {
     try {
-        const response = await axios.get<string>(url, {
-            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+        const response = await fetch(url, {
+            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
                 "User-Agent": options?.userAgent ?? USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
             },
-            responseType: "text",
-            validateStatus: (status) => status === 200,
-            maxRedirects: 5,
+            redirect: "follow",
         });
-        return response.data;
+        if (!response.ok) {
+            throw new Error(`Request failed with status code ${response.status}`);
+        }
+        return await response.text();
     } catch (error) {
-        if (error instanceof AxiosError) {
+        if (error instanceof Error) {
             throw new Error(
                 `Failed to fetch ${url}: ${error.message}`,
                 { cause: error },
@@ -236,14 +236,20 @@ async function fetchText(url: string, options?: FetchOptions): Promise<string> {
 
 async function fetchJson(url: string, options?: FetchOptions): Promise<unknown> {
     try {
-        const response = await axios.get(url, {
-            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
-            headers: { "User-Agent": options?.userAgent ?? USER_AGENT },
-            validateStatus: (status) => status === 200,
+        const response = await fetch(url, {
+            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
+            headers: {
+                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "Accept": "application/json, text/plain, */*",
+            },
+            redirect: "follow",
         });
-        return response.data;
+        if (!response.ok) {
+            throw new Error(`Request failed with status code ${response.status}`);
+        }
+        return await response.json();
     } catch (error) {
-        if (error instanceof AxiosError) {
+        if (error instanceof Error) {
             throw new Error(
                 `Failed to fetch JSON from ${url}: ${error.message}`,
                 { cause: error },
@@ -340,23 +346,25 @@ async function decodeOneGoogleNewsUrl(
 
     let body: string;
     try {
-        const response = await axios.post(
+        const response = await fetch(
             "https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je",
-            formData,
             {
-                timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+                method: "POST",
+                body: formData,
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                     "User-Agent": options?.userAgent ?? USER_AGENT,
                     "Referer": "https://news.google.com/",
                 },
-                responseType: "text",
-                validateStatus: (status) => status === 200,
+                signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
             },
         );
-        body = response.data as string;
+        if (!response.ok) {
+            throw new Error(`Google News decode POST failed with status ${response.status}`);
+        }
+        body = await response.text();
     } catch (error) {
-        if (error instanceof AxiosError) {
+        if (error instanceof Error) {
             throw new Error(`Google News decode POST failed: ${error.message}`, { cause: error });
         }
         throw error;
@@ -370,7 +378,7 @@ async function decodeOneGoogleNewsUrl(
             continue;
         }
         for (const node of walkArrays(frame)) {
-            if (node.length >= 3 && node[0] === "wrb.fr" && node[1] === "Fbv4je") {
+            if (Array.isArray(node) && node.length >= 3 && node[0] === "wrb.fr" && node[1] === "Fbv4je") {
                 let nested: unknown;
                 try {
                     nested = JSON.parse(node[2] as string);
@@ -430,15 +438,19 @@ function extractBbc(html: string): RawNewsItem[] {
         if (!title || title.length < 10) continue;
         const pos = m.index ?? 0;
         const before = html.slice(Math.max(0, pos - 5000), pos);
-        let aLinks = [...before.matchAll(/<a[^>]*href="(\/news\/(?:articles|videos)\/[^"]+)"/g)];
+        let aLinks = [...before.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/(?:articles|videos|live|[a-z0-9_-]+\/articles)\/[^"]+)"/g)];
         if (aLinks.length === 0) {
             const after = html.slice(pos, pos + 2000);
-            aLinks = [...after.matchAll(/<a[^>]*href="(\/news\/(?:articles|videos)\/[^"]+)"/g)];
+            aLinks = [...after.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/(?:articles|videos|live|[a-z0-9_-]+\/articles)\/[^"]+)"/g)];
+        }
+        if (aLinks.length === 0) {
+            aLinks = [...before.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/[^"]+)"/g)];
         }
         const lastLink = aLinks[aLinks.length - 1];
-        const url = lastLink?.[1] ? `https://www.bbc.com${lastLink[1]}` : "";
-        if (url && seenUrls.has(url)) continue;
-        if (url) seenUrls.add(url);
+        let url = lastLink?.[1] ? (lastLink[1].startsWith("http") ? lastLink[1] : `https://www.bbc.com${lastLink[1]}`) : "";
+        if (!url || !isArticleUrl(url)) continue;
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
         results.push({ title, url, time: "", category: "international" });
     }
     return results;
@@ -447,20 +459,22 @@ function extractBbc(html: string): RawNewsItem[] {
 function extractBbcSport(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
     const seen = new Set<string>();
-    const pattern = /href="(\/sport\/[^"]+\/articles\/[^"]+)"[^>]*>(.*?)<\/a>/gs;
+    const pattern = /href="((?:https:\/\/www\.bbc\.com)?\/sport\/[^"]+\/articles\/[^"]+)"[^>]*>(.*?)<\/a>/gs;
     for (const m of html.matchAll(pattern)) {
-        const urlPath = m[1] ?? "";
+        const rawUrlPath = m[1] ?? "";
         const title = stripTags(m[2] ?? "");
-        if (!title || title.length < 10 || seen.has(urlPath)) continue;
-        seen.add(urlPath);
-        const cat = urlPath.includes("football")
+        if (!title || title.length < 10 || seen.has(rawUrlPath)) continue;
+        seen.add(rawUrlPath);
+        const url = rawUrlPath.startsWith("http") ? rawUrlPath : `https://www.bbc.com${rawUrlPath}`;
+        if (!isArticleUrl(url)) continue;
+        const cat = rawUrlPath.includes("football")
             ? "football"
-            : urlPath.includes("formula1")
+            : rawUrlPath.includes("formula1")
                 ? "f1"
                 : "international";
         results.push({
             title,
-            url: `https://www.bbc.com${urlPath}`,
+            url,
             time: "",
             category: cat,
         });
@@ -485,8 +499,9 @@ function extractCnn(html: string): RawNewsItem[] {
         const lastLink = filtered[filtered.length - 1];
         const path = lastLink?.[1] ?? "";
         const fullUrl = path ? `https://edition.cnn.com${path}` : "";
-        if (fullUrl && seenUrls.has(fullUrl)) continue;
-        if (fullUrl) seenUrls.add(fullUrl);
+        if (!fullUrl || !isArticleUrl(fullUrl)) continue;
+        if (seenUrls.has(fullUrl)) continue;
+        seenUrls.add(fullUrl);
         results.push({ title, url: fullUrl, time: "", category: "international" });
     }
     return results.slice(0, 50);
@@ -503,7 +518,7 @@ function extractMarca(html: string): RawNewsItem[] {
         const url = m[1] ?? "";
         const dt = m[2] ?? "";
         const title = stripTags(m[3] ?? "");
-        if (!title || title.length < 10 || seen.has(url)) continue;
+        if (!title || title.length < 10 || seen.has(url) || !isArticleUrl(url)) continue;
         seen.add(url);
         results.push({ title, url, time: dt, category: "realmadrid" });
     }
@@ -518,7 +533,7 @@ function extractMarca(html: string): RawNewsItem[] {
         const aLinks = [...before.matchAll(/href="(https:\/\/www\.marca\.com\/[^"]+)"/g)];
         const lastLink = aLinks[aLinks.length - 1];
         const url = lastLink?.[1] ?? "";
-        if (seen.has(url)) continue;
+        if (!url || seen.has(url) || !isArticleUrl(url)) continue;
         seen.add(url);
         seen.add(title);
         results.push({ title, url, time: "", category: "realmadrid" });
@@ -532,10 +547,11 @@ function extractF1(html: string): RawNewsItem[] {
     for (const m of html.matchAll(pattern)) {
         const urlPath = m[1] ?? "";
         const title = stripTags(m[2] ?? "");
-        if (title && title.length > 10) {
+        const url = `https://www.formula1.com${urlPath}`;
+        if (title && title.length > 10 && isArticleUrl(url)) {
             results.push({
                 title,
-                url: `https://www.formula1.com${urlPath}`,
+                url,
                 time: "",
                 category: "f1",
             });
@@ -551,7 +567,7 @@ function extractTechcrunch(html: string): RawNewsItem[] {
     for (const m of html.matchAll(pattern)) {
         const url = m[1] ?? "";
         const title = stripTags(m[2] ?? "");
-        if (!title || title.length < 10 || seen.has(url)) continue;
+        if (!title || title.length < 10 || seen.has(url) || !isArticleUrl(url)) continue;
         seen.add(url);
         // Search forward for nearest <time datetime> (~500 chars)
         const afterStart = (m.index ?? 0) + m[0].length;
@@ -594,7 +610,7 @@ function extractThepaper(html: string): RawNewsItem[] {
 
         const lastLink = aLinks[aLinks.length - 1]!;
         const url = `https://www.thepaper.cn${lastLink[1]}`;
-        if (seenUrls.has(url)) continue;
+        if (!isArticleUrl(url) || seenUrls.has(url)) continue;
         seenUrls.add(url);
 
         const contId = lastLink[2] ?? "";
@@ -633,7 +649,7 @@ function extractNfnews(html: string): RawNewsItem[] {
         const url = rawHref.startsWith("http")
             ? rawHref
             : `https://www.nfnews.com${rawHref}`;
-        if (seenUrls.has(url)) continue;
+        if (!isArticleUrl(url) || seenUrls.has(url)) continue;
         seenUrls.add(url);
         results.push({ title, url, time: "", category: "shenzhen" });
     }
@@ -653,8 +669,8 @@ function extractRacefans(html: string): RawNewsItem[] {
         const linkMatch = inner.match(/<a[^>]*href="(https?:\/\/www\.racefans\.net\/\d{4}\/\d{2}\/\d{2}\/[^"]+)"/)
             ?? inner.match(/<a[^>]*href="(https?:\/\/[^"]+)"/);
         const url = linkMatch?.[1] ?? "";
-        if (url && seen.has(url)) continue;
-        if (url) seen.add(url);
+        if (!url || !isArticleUrl(url) || seen.has(url)) continue;
+        seen.add(url);
         results.push({ title, url, time: "", category: "f1" });
     }
     return results;
@@ -676,6 +692,9 @@ function extractRss(xml: string): RawNewsItem[] {
         title = htmlUnescape(title);
         if (!title || title.length <= 5) continue;
 
+        const url = linkMatch?.[1]?.trim() ?? "";
+        if (!url) continue;
+
         // Extract description text — used as pre-populated `raw` for sources
         // whose article pages are inaccessible (e.g. Motorsport.com: CloudFront 403).
         let raw: string | undefined;
@@ -690,7 +709,7 @@ function extractRss(xml: string): RawNewsItem[] {
 
         const resultItem: RawNewsItem = {
             title,
-            url: linkMatch?.[1]?.trim() ?? "",
+            url,
             time: pubDateMatch?.[1]?.trim() ?? "",
             category: "international", // Default; overridden by feed config
         };

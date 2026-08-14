@@ -22,15 +22,23 @@ const SaveNewsRequiresSchema = z.object({
 });
 type SaveNewsRequires = z.infer<typeof SaveNewsRequiresSchema>;
 
-export default async function saveNews({ inputs, requires }: OperatorArgs): Promise<OperatorOutput> {
+export default async function saveNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
         const { save_input_items } = inputs as SaveNewsInput;
         const repository = requires.repository as Repository<BriefNews>;
+        const save_options = options as SaveNewsOptions;
+
         const save_promises: Promise<void>[] = Array.from(save_input_items.values(), async (items: Map<string, BriefNewsLike>) => {
             const entities = [...items.values()].map(item => repository.create(item));
             await repository.save(entities);
         });
         await Promise.all(save_promises);
+
+        if (save_options?.debug) {
+            const totalSaved = Array.from(save_input_items.values()).reduce((sum, map) => sum + map.size, 0);
+            console.log(`[SAVE] Total items saved: ${totalSaved}`);
+        }
+
         const op_output: SaveNewsOutput = { saved: true };
         return { branch: "default", output: op_output };
     } catch (err) {
@@ -39,10 +47,16 @@ export default async function saveNews({ inputs, requires }: OperatorArgs): Prom
     }
 }
 
+export const SaveNewsOptionsSchema = z.object({
+    debug: z.coerce.boolean().default(false)
+});
+export type SaveNewsOptions = z.infer<typeof SaveNewsOptionsSchema>;
+
 export class SaveNewsOperator extends Operator {
     name: string = "save_news";
     input_schema = SaveNewsInputSchema;
     output_schemas = { default: SaveNewsOutputSchema, error: ErrorInfoSchema };
     requires_schema = SaveNewsRequiresSchema;
+    options_schema = SaveNewsOptionsSchema;
     exec = saveNews;
 }

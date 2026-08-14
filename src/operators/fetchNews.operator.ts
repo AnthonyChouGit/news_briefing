@@ -7,8 +7,9 @@ import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 export const FetchOptionsSchema = z.object({
     timeout: z.coerce.number().int().nonnegative().optional(),
     maxDecodeItems: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional()
-}).default({});
+    userAgent: z.string().nonempty().optional(),
+    debug: z.coerce.boolean().default(false)
+});
 export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
 
 const FetchNewsInputSchema = z.object({
@@ -59,6 +60,11 @@ export default async function fetchNews({ inputs, requires, options }: OperatorA
 
         if (all_categories.size === 0) {
             throw new Error("All categories failed to fetch.");
+        }
+
+        if (fetch_options?.debug) {
+            const total = Array.from(all_categories.values()).reduce((sum, map) => sum + map.size, 0);
+            console.log(`[FETCH] Total items fetched: ${total}`);
         }
 
         const op_output: FetchNewsOutput = { fetched_items: all_categories };

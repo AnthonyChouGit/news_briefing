@@ -5,7 +5,8 @@ import { type NewsCategory } from "../types/news_category.enum.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { LanguageSchema } from "../types/language.enum.js";
 export const FormatNewsOptionsSchema = z.object({
-    language: LanguageSchema
+    language: LanguageSchema.default('English'),
+    debug: z.coerce.boolean().default(false)
 });
 export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
 import { type Language } from "../types/language.enum.js";
@@ -25,27 +26,27 @@ function escapeMarkdownV2(text: string): string {
 /** Emoji prefix for each category (language-independent). */
 const CATEGORY_EMOJI: Record<NewsCategory, string> = {
     international: "🌍",
-    football:      "⚽",
-    realmadrid:    "🤍",
-    f1:            "🏎️",
-    ai:            "🤖",
-    mlb:           "⚾",
-    shenzhen:      "🏙️",
-    tabletennis:   "🏓",
+    football: "⚽",
+    realmadrid: "🤍",
+    f1: "🏎️",
+    ai: "🤖",
+    mlb: "⚾",
+    shenzhen: "🏙️",
+    tabletennis: "🏓",
 };
 
 /** Localized category display names keyed by Language then NewsCategory. */
 const CATEGORY_LABELS: Record<string, Record<NewsCategory, string>> = {
-    English:    { international: "International",   football: "Football",       realmadrid: "Real Madrid",   f1: "Formula 1",   ai: "AI & Tech",          mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Table Tennis" },
-    Chinese:    { international: "国际",             football: "足球",            realmadrid: "皇家马德里",    f1: "F1 赛车",     ai: "AI 与科技",           mlb: "美国职棒",  shenzhen: "深圳",       tabletennis: "乒乓球" },
-    Spanish:    { international: "Internacional",   football: "Fútbol",         realmadrid: "Real Madrid",   f1: "Fórmula 1",   ai: "IA y Tecnología",    mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Tenis de Mesa" },
-    French:     { international: "International",   football: "Football",       realmadrid: "Real Madrid",   f1: "Formule 1",   ai: "IA et Tech",         mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Tennis de Table" },
-    German:     { international: "International",   football: "Fußball",        realmadrid: "Real Madrid",   f1: "Formel 1",    ai: "KI & Technik",       mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Tischtennis" },
-    Italian:    { international: "Internazionale",  football: "Calcio",         realmadrid: "Real Madrid",   f1: "Formula 1",   ai: "IA e Tecnologia",    mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Tennistavolo" },
-    Portuguese: { international: "Internacional",   football: "Futebol",        realmadrid: "Real Madrid",   f1: "Fórmula 1",   ai: "IA e Tecnologia",    mlb: "MLB",      shenzhen: "Shenzhen",   tabletennis: "Tênis de Mesa" },
-    Russian:    { international: "Международные",   football: "Футбол",         realmadrid: "Реал Мадрид",   f1: "Формула 1",   ai: "ИИ и технологии",    mlb: "MLB",      shenzhen: "Шэньчжэнь", tabletennis: "Настольный теннис" },
-    Japanese:   { international: "国際",             football: "サッカー",        realmadrid: "レアル・マドリード", f1: "F1",       ai: "AI・テクノロジー",    mlb: "MLB",      shenzhen: "深セン",     tabletennis: "卓球" },
-    Korean:     { international: "국제",             football: "축구",            realmadrid: "레알 마드리드",  f1: "F1",          ai: "AI & 테크",          mlb: "MLB",      shenzhen: "선전",       tabletennis: "탁구" },
+    English: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formula 1", ai: "AI & Tech", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Table Tennis" },
+    Chinese: { international: "国际视野", football: "足球", realmadrid: "皇家马德里", f1: "F1·赛车", ai: "AI·大模型", mlb: "MLB·棒球", shenzhen: "深圳·国内", tabletennis: "乒乓球" },
+    Spanish: { international: "Panorama Internacional", football: "Fútbol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA y Tecnología", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tenis de Mesa" },
+    French: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formule 1", ai: "IA et Tech", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tennis de Table" },
+    German: { international: "International", football: "Fußball", realmadrid: "Real Madrid", f1: "Formel 1", ai: "KI & Technik", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tischtennis" },
+    Italian: { international: "Internazionale", football: "Calcio", realmadrid: "Real Madrid", f1: "Formula 1", ai: "IA e Tecnologia", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tennistavolo" },
+    Portuguese: { international: "Internacional", football: "Futebol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA e Tecnologia", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tênis de Mesa" },
+    Russian: { international: "Международные", football: "Футбол", realmadrid: "Реал Мадрид", f1: "Формула 1", ai: "ИИ и технологии", mlb: "MLB", shenzhen: "Шэньчжэнь", tabletennis: "Настольный теннис" },
+    Japanese: { international: "国際情勢", football: "サッカー", realmadrid: "レアル・マドリード", f1: "F1", ai: "AI・テクノロジー", mlb: "MLB", shenzhen: "深セン・国内", tabletennis: "卓球" },
+    Korean: { international: "국제", football: "축구", realmadrid: "레알 마드리드", f1: "F1", ai: "AI & 테크", mlb: "MLB", shenzhen: "선전·국내", tabletennis: "탁구" },
 };
 
 /**
@@ -59,16 +60,16 @@ const CATEGORY_ORDER: readonly NewsCategory[] = [
 
 /** Map Language enum values to BCP 47 locale tags for date formatting. */
 const LANGUAGE_LOCALE: Record<string, string> = {
-    English:    "en-US",
-    Chinese:    "zh-CN",
-    Spanish:    "es-ES",
-    French:     "fr-FR",
-    German:     "de-DE",
-    Italian:    "it-IT",
+    English: "en-US",
+    Chinese: "zh-CN",
+    Spanish: "es-ES",
+    French: "fr-FR",
+    German: "de-DE",
+    Italian: "it-IT",
     Portuguese: "pt-BR",
-    Russian:    "ru-RU",
-    Japanese:   "ja-JP",
-    Korean:     "ko-KR",
+    Russian: "ru-RU",
+    Japanese: "ja-JP",
+    Korean: "ko-KR",
 };
 
 // ── Formatting functions ────────────────────────────────────────────
@@ -84,19 +85,28 @@ function buildDateHeader(
             if (!latest || item.source_date > latest) latest = item.source_date;
         }
     }
-    if (!latest) return undefined;
+    if (!latest) latest = new Date();
 
     const locale = LANGUAGE_LOCALE[language] ?? "en-US";
-    const formatted = latest.toLocaleString(locale, {
-        weekday: "long",
+    const dateStr = latest.toLocaleDateString(locale, {
         year: "numeric",
-        month: "long",
-        day: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    const timeStr = latest.toLocaleTimeString(locale, {
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
     });
+    const dateTimeStr = `${dateStr} ${timeStr}`;
 
-    return `*📰 ${escapeMarkdownV2(formatted)}*`;
+    const categoryEmojis = sortCategories([...all_items.keys()])
+        .map((cat) => CATEGORY_EMOJI[cat] ?? "")
+        .filter(Boolean)
+        .join("");
+
+    const titlePrefix = language === "Chinese" ? "新闻简报" : "News Briefing";
+    return `📰 *${escapeMarkdownV2(titlePrefix)} \\| ${escapeMarkdownV2(dateTimeStr)} ${categoryEmojis}*`;
 }
 
 /** Sort categories according to the preferred display order. */
@@ -108,31 +118,45 @@ function sortCategories(categories: NewsCategory[]): NewsCategory[] {
     });
 }
 
+function formatItemDate(date: Date, language: Language): string {
+    const locale = LANGUAGE_LOCALE[language] ?? "en-US";
+    return date.toLocaleString(locale, {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+}
+
 /**
  * Render a single article.
  *
  * Format:
  * ```
- * • [Title](url) — _Source_
- *   ◦ bullet 1
- *   ◦ bullet 2
+ * • *Title* Date [Source](url)
+ * bullet 1
+ * bullet 2
  * ```
- *
- * In MarkdownV2, the URL inside `[text](url)` must NOT be escaped,
- * but the link text must be.
  */
-function formatArticle(item: BriefNewsLike): string {
+function formatArticle(item: BriefNewsLike, language: Language): string {
     const title = escapeMarkdownV2(item.title);
     const source = escapeMarkdownV2(item.source_name);
-    const url = item.url; // URLs inside (...) are not escaped in MarkdownV2.
+    const url = item.url;
+    const sourceLink = url ? `[${source}](${url})` : `_${source}_`;
+
+    let dateStr = "";
+    if (item.source_date && item.source_date.getTime() > 0) {
+        dateStr = ` ${escapeMarkdownV2(formatItemDate(item.source_date, language))}`;
+    }
 
     const parts: string[] = [
-        `• [${title}](${url}) — _${source}_`,
+        `• *${title}*${dateStr} ${sourceLink}`,
     ];
 
     if (item.bullets && item.bullets.length > 0) {
         for (const bullet of item.bullets) {
-            parts.push(`  ◦ ${escapeMarkdownV2(bullet)}`);
+            parts.push(`  • ${escapeMarkdownV2(bullet)}`);
         }
     }
 
@@ -154,14 +178,10 @@ function formatCategorySection(
 
     const emoji = CATEGORY_EMOJI[category] ?? "📌";
     const name = CATEGORY_LABELS[language]?.[category] ?? CATEGORY_LABELS["English"]![category] ?? category;
-    const label = `${emoji} ${name}`;
-    const lines: string[] = [`*${escapeMarkdownV2(label)}*`];
+    const header = `${emoji} *${escapeMarkdownV2(name)}*`;
 
-    for (const item of sorted) {
-        lines.push(formatArticle(item));
-    }
-
-    return lines.join("\n");
+    const articleBlocks = sorted.map((item) => formatArticle(item, language));
+    return `${header}\n${articleBlocks.join("\n\n")}`;
 }
 
 /** Format all news items into a Telegram MarkdownV2 message. */
@@ -225,4 +245,12 @@ export class FormatNewsOperator extends Operator {
     output_schemas = { default: FormatNewsOutputSchema, error: ErrorInfoSchema };
     options_schema = FormatNewsOptionsSchema;
     exec = formatNews;
+}
+
+export class FormatNewsOperatorThread extends Operator {
+    name: string = "format_news";
+    input_schema = FormatNewsInputSchema;
+    output_schemas = { default: FormatNewsOutputSchema, error: ErrorInfoSchema };
+    options_schema = FormatNewsOptionsSchema;
+    exec = import.meta.filename;
 }

@@ -5,6 +5,13 @@ import { GrammyTelegramClient } from "./telegram.js";
 import { BriefNews } from "../types/brief_news.entity.js";
 import { OpenAIClient } from "./ai.js";
 
+export interface InitData {
+    inputs: Record<string, unknown>,
+    context: Record<string, unknown>,
+    options: Record<string, unknown>,
+    pool: Piscina
+}
+
 export class ExecutionContext {
     private readonly data_source: DataSource;
     private readonly ai_client: OpenAIClient;
@@ -34,7 +41,7 @@ export class ExecutionContext {
         this.config = config;
     }
 
-    public async init(): Promise<{ inputs: Record<string, unknown>, context: Record<string, unknown>, options: Record<string, unknown> }> {
+    public async init(): Promise<InitData> {
         await this.data_source.initialize();
         const context = {
             thread_pool: this.thread_pool,
@@ -52,16 +59,19 @@ export class ExecutionContext {
             concurrency: this.config.concurrency,
             language: this.config.language,
             parse_mode: this.config.parse_mode,
+            debug: this.config.debug,
         };
         const inputs = {
             categories: this.config.categories,
             channels: this.config.channels
         };
-        return { inputs, context, options };
+        return { inputs, context, options, pool: this.thread_pool };
     }
 
     public async cleanUp() {
-        await this.data_source.destroy();
-        await this.thread_pool.destroy();
+        if (this.data_source.isInitialized)
+            await this.data_source.destroy();
+        if (this.thread_pool)
+            await this.thread_pool.destroy();
     }
 }

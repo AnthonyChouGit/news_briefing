@@ -6,30 +6,29 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { LanguageSchema } from "../types/language.enum.js";
 export const SummarizeNewsOptionsSchema = z.object({
-    language: LanguageSchema
+    language: LanguageSchema.default('English'),
+    debug: z.coerce.boolean().default(false)
 });
 export type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
 import { logExpectedError } from "./common/errors.js";
 import { type Language } from "../types/language.enum.js";
 
-const getSummarizeInstruction = (language: Language) => `You are a news summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and raw (the full article text).
+const getSummarizeInstruction = (language: Language) => `You are a world-class senior news editor and summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and raw (the full article text).
 
-For EVERY article in the input, produce a concise summary as bullet points. You must return a JSON array with exactly one entry per input article, in the same order. Each entry must have:
+For EVERY article in the input, produce a high-quality, comprehensive, and journalistic summary. You must return a JSON object with an "items" array containing exactly one entry per input article, in the same order. Each entry must have:
 
 - "hash_id": The exact hash_id of the article (do not modify or generate new IDs).
-- "title": A rewritten title in ${language} that accurately describes the news.
-- "bullets": An array of 3 to 5 bullet points summarizing the article in ${language}.
+- "title": A comprehensive, informative, and engaging headline in ${language} (typically 20–60 characters in Chinese/Japanese or 10–25 words in Western languages) that accurately captures the core subject, action, context, and key figures/outcomes (e.g., "白宫报告：逾40国帮助中国规避美国关税，涉数十亿美元", "NTSB：瑞安航空客机发动机叶片断裂，碎片击碎舷窗致乘客半身被吸出", "芒西第131轰登顶道奇体育场队史本垒打王，道奇仍负酿酒人"). Avoid short, vague, or overly generic titles.
+- "bullets": An array of 2 to 4 detailed, substantive bullet points summarizing the article in ${language}.
 
-Bullet point rules:
-- Each bullet must be a single, complete sentence or phrase that captures one key fact or takeaway.
-- Each bullet must be between 10 and 50 characters long. This is a hard limit — do not exceed it or fall short.
-- Bullets should be informative and specific. Avoid vague or generic statements like "The article discusses..." or "Details were provided."
-- Prioritize the most newsworthy facts: who, what, when, where, and why.
-- Do not repeat information across bullets.
-- Do not include opinions or editorializing. Stick to factual reporting.
-- ALL titles and bullets MUST be written in ${language}.
+Summary and bullet point guidelines:
+- Substantive & Informative: Each bullet point should be a rich, complete sentence providing specific facts, figures, key names, dates, quotes, context, and developments from the full article text.
+- Comprehensive Depth: Do NOT write short or superficial fragments. Provide full journalistic context: What happened, why it matters, key background facts, and responses or future implications.
+- Factual & Objective: Stick strictly to the facts provided in the text. No editorializing or speculation.
+- Non-Redundant: Ensure each bullet covers distinct aspects (e.g. 1st bullet: main occurrence/finding; 2nd bullet: key details, figures, or names; 3rd bullet: background context, quotes, reactions, or next steps).
+- Natural Flow: All titles and bullets MUST be written fluently in ${language}.
 
-Respond with ONLY the JSON array. Do not include any other text, explanation, or formatting.`;
+Respond with a JSON object containing the "items" array (e.g. {"items": [...]}). Do not include any other text, explanation, or formatting.`;
 
 const SummarizeNewsInputSchema = z.object({
     summarize_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
@@ -50,21 +49,27 @@ async function summarizeEvents(items: Map<string, BriefNewsLike>, ai_client: AIC
     if (items.size === 0)
         return items;
     const payload: string = JSON.stringify([...items.values()]);
-    const res_schema = z.array(
-        z.object({
-            hash_id: z.enum([...items.keys()]),
-            title: z.string().nonempty(),
-            bullets: z.array(z.string().nonempty().min(10).max(50)).min(3).max(5)
-        })
-    ).length(items.size);
+    const res_schema = z.object({
+        items: z.array(
+            z.object({
+                hash_id: z.string().nonempty(),
+                title: z.string().nonempty(),
+                bullets: z.array(z.string().nonempty().min(10)).min(2).max(5)
+            })
+        )
+    });
 
     const res_data = await ai_client.ask(payload, getSummarizeInstruction(language), res_schema);
 
     // Actually enforce the Zod validation!
-    const items_bullets = res_schema.parse(JSON.parse(res_data));
+    const items_bullets = res_schema.parse(JSON.parse(res_data)).items;
 
-    items_bullets.forEach((item) => {
-        const targetItem = items.get(item.hash_id);
+    const itemsList = [...items.values()];
+    items_bullets.forEach((item, idx) => {
+        let targetItem = items.get(item.hash_id);
+        if (!targetItem && itemsList[idx] && items_bullets.length === itemsList.length) {
+            targetItem = itemsList[idx];
+        }
         if (targetItem) {
             targetItem.bullets = item.bullets;
             targetItem.title = item.title;

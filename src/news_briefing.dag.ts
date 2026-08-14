@@ -9,7 +9,7 @@ import { ErrorOperator } from "./operators/error.operator.js";
 import { SaveNewsOperator } from "./operators/saveNews.operator.js";
 import { SendNewsOperator } from "./operators/sendNews.operator.js";
 import { MergeStatusOperator } from "./operators/mergeStatus.operator.js";
-import { FormatNewsOperator } from "./operators/formatNews.operator.js";
+import { FormatNewsOperatorThread } from "./operators/formatNews.operator.js";
 
 const fetch_news_op = new FetchNewsOperator(); // In: categories  Out: fetched_items
 
@@ -27,7 +27,7 @@ const read_news_op = new ReadNewsOperator().mapInput("read_input_items", "trunca
 const summarize_news_op = new SummarizeNewsOperator().mapInput("summarize_input_items", "read_items");
 // In: read_items Out: summarized_items
 
-const format_news_op = new FormatNewsOperator().mapInput("format_input_items", "summarized_items");
+const format_news_op = new FormatNewsOperatorThread().mapInput("format_input_items", "summarized_items");
 // In: summarized_items Out: news_text
 
 const send_news_op = new SendNewsOperator(); // In: news_text, channels Out: sent

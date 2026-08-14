@@ -39,7 +39,6 @@
  * Calling with a non-map or empty map throws a `TypeError` immediately.
  */
 
-import axios, { AxiosError } from "axios";
 import pLimit from "p-limit";
 import { type BriefNewsLike } from "../../types/brief_news.entity.js";
 import { type ReadOptions } from "../readNews.operator.js";
@@ -51,9 +50,9 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
     "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
-const MAX_BODY_CHARS = 50_000;
+const MAX_BODY_CHARS = Infinity; // No length limit on article body
 const CONCURRENCY = 5;
-const MAX_PARAGRAPHS = 30;
+const MAX_PARAGRAPHS = 100;
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -334,21 +333,22 @@ function extractTime(rawHtml: string): Date | undefined {
 
 async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
     try {
-        const response = await axios.get<string>(url, {
-            timeout: options?.timeout ?? DEFAULT_TIMEOUT_MS,
+        const response = await fetch(url, {
+            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
                 "User-Agent": options?.userAgent ?? USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
             },
-            responseType: "text",
-            validateStatus: (status) => status === 200,
-            maxRedirects: 5,
+            redirect: "follow",
         });
-        return response.data;
+        if (!response.ok) {
+            throw new Error(`Request failed with status code ${response.status}`);
+        }
+        return await response.text();
     } catch (error) {
-        if (error instanceof AxiosError) {
-            throw new Error(`read fetch failed: ${error.message}`, { cause: error });
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch ${url}: ${error.message}`, { cause: error });
         }
         throw error;
     }
@@ -377,7 +377,7 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
         throw new TypeError("readNewsDetails: expected a Map of BriefNews items");
     }
     if (items.size === 0) {
-        throw new TypeError("readNewsDetails: input map must not be empty");
+        return items;
     }
 
     const maxBody = options?.maxBodyChars ?? MAX_BODY_CHARS;
@@ -412,7 +412,7 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
                 const html = await fetchHtml(item.url, options);
                 const body = extractor(html);
                 const parsedDate = extractTime(html);
-                
+
                 if (body) {
                     item.raw = body.slice(0, maxBody);
                 }
@@ -421,7 +421,7 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
                         item.source_date = parsedDate;
                     }
                 }
-                
+
                 // Fallback if still no valid date is available
                 if (item.source_date.getTime() === 0) {
                     item.source_date = new Date();

@@ -41,7 +41,7 @@ export class LightDag {
         inputs: Record<string, unknown>,
         outputs: string[],
         context?: Record<string, unknown>,
-        options?: Record<string, Record<string, unknown>>,
+        options?: Record<string, unknown>,
         pool?: Piscina
     ) {
         if (this.debug) {
@@ -73,30 +73,36 @@ export class LightDag {
             resolves.set(task, { resolve, reject });
         }
         this.log("run() started");
+        let timeout_id: NodeJS.Timeout | undefined;
         if (this.timeout)
-            setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
-        for (const op_name of this.operators.keys())
-            this.runNode(op_name, tasks, resolves, context, options?.[op_name], pool);
-        for (const [input_name, input_value] of Object.entries(inputs)) {
-            const entry = resolves.get(input_name);
-            if (!entry)
-                throw new Error(`Input "${input_name}" not found`);
+            timeout_id = setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
+        try {
+            for (const op_name of this.operators.keys())
+                this.runNode(op_name, tasks, resolves, context, options, pool);
+            for (const [input_name, input_value] of Object.entries(inputs)) {
+                const entry = resolves.get(input_name);
+                if (!entry)
+                    throw new Error(`Input "${input_name}" not found`);
 
-            entry.resolve(input_value);
+                entry.resolve(input_value);
+            }
+            const output_promises = outputs.map((output_name) => {
+                const task = tasks.get(output_name);
+                if (!task)
+                    throw new Error(`Requested output "${output_name}" does not exist in the DAG`);
+                return task;
+            });
+            const resolved_outputs = await Promise.all(output_promises);
+            const output_values: Record<string, unknown> = {};
+            for (let i = 0; i < outputs.length; i++) {
+                output_values[outputs[i]!] = resolved_outputs[i];
+            }
+            this.log("run() completed");
+            return output_values;
+        } finally {
+            if (timeout_id)
+                clearTimeout(timeout_id);
         }
-        const output_promises = outputs.map((output_name) => {
-            const task = tasks.get(output_name);
-            if (!task)
-                throw new Error(`Requested output "${output_name}" does not exist in the DAG`);
-            return task;
-        });
-        const resolved_outputs = await Promise.all(output_promises);
-        const output_values: Record<string, unknown> = {};
-        for (let i = 0; i < outputs.length; i++) {
-            output_values[outputs[i]!] = resolved_outputs[i];
-        }
-        this.log("run() completed");
-        return output_values;
     }
 
     private async runNode(

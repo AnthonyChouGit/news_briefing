@@ -6,8 +6,9 @@ export const ReadOptionsSchema = z.object({
     timeout: z.coerce.number().int().nonnegative().optional(),
     userAgent: z.string().nonempty().optional(),
     maxBodyChars: z.coerce.number().int().nonnegative().optional(),
-    concurrency: z.coerce.number().int().positive().optional()
-}).default({});
+    concurrency: z.coerce.number().int().positive().optional(),
+    debug: z.coerce.boolean().default(false)
+});
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
@@ -37,9 +38,12 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
             throw new Error("Categories map cannot be empty.");
         }
 
-        const tasks = Array.from(read_input_items.values(), (items) =>
-            thread_pool.run({ items, options: read_options },
-                { name: 'readNewsDetails', filename: new URL('./workers/_read.js', import.meta.url).href })
+        const tasks = Array.from(read_input_items.values(), (items) => {
+            if (items.size === 0)
+                return Promise.resolve(items);
+            return thread_pool.run({ items, options: read_options },
+                { name: 'readNewsDetails', filename: new URL('./workers/_read.js', import.meta.url).href });
+        }
         );
         const results = await Promise.allSettled(tasks);
         const categories: NewsCategory[] = [...read_input_items.keys()];

@@ -4,7 +4,8 @@ import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
 export const TruncateNewsOptionsSchema = z.object({
-    max_items_per_category: z.number().int().positive().optional().default(5)
+    max_items_per_category: z.coerce.number().int().positive().optional().default(5),
+    debug: z.coerce.boolean().default(false)
 });
 export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 

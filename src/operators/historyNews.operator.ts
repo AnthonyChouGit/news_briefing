@@ -5,7 +5,8 @@ import { type NewsCategory, NewsCategorySchema } from "../types/news_category.en
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 export const HistoryNewsOptionsSchema = z.object({
-    time_window_days: z.number().positive().default(3)
+    time_window_days: z.coerce.number().positive().default(3),
+    debug: z.coerce.boolean().default(false)
 });
 export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
 

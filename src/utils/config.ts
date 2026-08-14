@@ -23,8 +23,8 @@ export const AICientConfigSchema = z.object({
     base_url: z.string().nonempty(),
     model: z.string().nonempty(),
     instruction: z.string().nonempty().optional(),
-    timeout: z.number().int().positive().default(300000),
-    max_retries: z.number().int().positive().default(3)
+    timeout: z.coerce.number().int().positive().default(300000),
+    max_retries: z.coerce.number().int().positive().default(3)
 });
 export type AICientConfig = z.infer<typeof AICientConfigSchema>;
 
@@ -41,6 +41,7 @@ export const InputSchema = z.object({
         .transform((val) => val.split(",").map((s) => s.trim()))
 });
 export type Input = z.infer<typeof InputSchema>;
+
 
 export const ConfigSchema = DbConfigSchema
     .and(AICientConfigSchema)

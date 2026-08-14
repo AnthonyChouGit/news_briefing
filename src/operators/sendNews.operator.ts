@@ -3,8 +3,11 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { TelegramClient, TelegramParseModeSchema } from "../utils/telegram.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { logExpectedError } from "./common/errors.js";
+
 export const SendNewsOptionsSchema = z.object({
-    parse_mode: TelegramParseModeSchema
+    parse_mode: TelegramParseModeSchema.default("MarkdownV2"),
+    chunk_size: z.coerce.number().positive().default(4000),
+    debug: z.coerce.boolean().default(false)
 });
 export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
 
@@ -28,16 +31,22 @@ export default async function sendNews({ inputs, requires, options }: OperatorAr
     try {
         const { news_text, channels } = inputs as SendNewsInput;
         const { send_client } = requires as SendNewsRequires;
-        const { parse_mode } = options as SendNewsOptions;
+        const { parse_mode, chunk_size, debug } = options as SendNewsOptions;
         const send_promises = channels.map(async (channel: string) => {
-            await send_client.sendMessage(channel, news_text, { parse_mode });
+            await send_client.sendMessage(channel, news_text, { parse_mode, chunk_size });
         });
         const send_results = await Promise.allSettled(send_promises);
+        let sentCount = 0;
         for (let i = 0; i < channels.length; i++) {
             const result = send_results[i]!;
             if (result.status === "rejected") {
                 logExpectedError(`Failed to send news to channel ${channels[i]}: ${result.reason}`);
+            } else {
+                sentCount++;
             }
+        }
+        if (debug) {
+            console.log(`[SEND] Successfully sent news to ${sentCount}/${channels.length} channels`);
         }
         const op_output: SendNewsOutput = { sent: true };
         return { branch: "default", output: op_output };
