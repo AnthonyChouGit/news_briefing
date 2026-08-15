@@ -5,8 +5,8 @@ import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { logExpectedError } from "./common/errors.js";
 
 export const SendNewsOptionsSchema = z.object({
-    parse_mode: TelegramParseModeSchema.default("MarkdownV2"),
-    chunk_size: z.coerce.number().positive().default(4000),
+    send_parse_mode: TelegramParseModeSchema.default("MarkdownV2"),
+    send_chunk_size: z.coerce.number().positive().default(4000),
     debug: z.coerce.boolean().default(false)
 });
 export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
@@ -31,9 +31,9 @@ export default async function sendNews({ inputs, requires, options }: OperatorAr
     try {
         const { news_text, channels } = inputs as SendNewsInput;
         const { send_client } = requires as SendNewsRequires;
-        const { parse_mode, chunk_size, debug } = options as SendNewsOptions;
+        const { send_parse_mode, send_chunk_size, debug } = options as SendNewsOptions;
         const send_promises = channels.map(async (channel: string) => {
-            await send_client.sendMessage(channel, news_text, { parse_mode, chunk_size });
+            await send_client.sendMessage(channel, news_text, { parse_mode: send_parse_mode, chunk_size: send_chunk_size });
         });
         const send_results = await Promise.allSettled(send_promises);
         let sentCount = 0;

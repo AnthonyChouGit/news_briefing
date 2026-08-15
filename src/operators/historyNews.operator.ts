@@ -5,7 +5,7 @@ import { type NewsCategory, NewsCategorySchema } from "../types/news_category.en
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 export const HistoryNewsOptionsSchema = z.object({
-    time_window_days: z.coerce.number().positive().default(3),
+    history_time_window_days: z.coerce.number().positive().default(3),
     debug: z.coerce.boolean().default(false)
 });
 export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
@@ -35,7 +35,7 @@ export default async function historyNews({ inputs, requires, options }: Operato
             const items: BriefNews[] = await repository.find({
                 where: {
                     category: category,
-                    source_date: MoreThanOrEqual(new Date(Date.now() - 24 * 60 * 60 * 1000 * (options as HistoryNewsOptions).time_window_days))
+                    source_date: MoreThanOrEqual(new Date(Date.now() - 24 * 60 * 60 * 1000 * (options as HistoryNewsOptions).history_time_window_days))
                 }
             });
             return new Map(items.map(item => [item.hash_id, item]));

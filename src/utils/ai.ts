@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
-import { AICientConfigSchema, type AICientConfig } from "./config.js";
+import { AIClientConfigSchema, type AIClientConfig } from "./config.js";
 
 export abstract class AIClient {
     abstract ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string>;
@@ -12,16 +12,16 @@ export class OpenAIClient extends AIClient {
     private readonly model: string;
     private readonly client: OpenAI;
 
-    constructor(config: AICientConfig) {
+    constructor(config: AIClientConfig) {
         super();
-        const valid_config = AICientConfigSchema.parse(config);
+        const valid_config = AIClientConfigSchema.parse(config);
         this.client = new OpenAI({
-            apiKey: valid_config.api_key,
-            baseURL: valid_config.base_url,
-            timeout: valid_config.timeout,
-            maxRetries: valid_config.max_retries
+            apiKey: valid_config.ai_api_key,
+            baseURL: valid_config.ai_base_url,
+            timeout: valid_config.ai_timeout,
+            maxRetries: valid_config.ai_max_retries
         });
-        this.model = valid_config.model;
+        this.model = valid_config.ai_model;
     }
 
     public async ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string> {

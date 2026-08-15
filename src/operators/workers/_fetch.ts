@@ -53,7 +53,7 @@
  *   if (error instanceof Error) {
  *     console.error(error.name);    // e.g. "TypeError"
  *     console.error(error.message); // A descriptive error message
- *     console.error(error.cause);   // Underlying original error (e.g. from Axios), if available
+ *     console.error(error.cause);   // Underlying original error (e.g. from fetch), if available
  *     console.error(error.stack);   // The stack trace
  *   }
  * }
@@ -187,7 +187,11 @@ export const FALLBACK_DATE = new Date(0);
 
 function parseSourceDate(dateStr: string): Date {
     if (!dateStr.trim()) return FALLBACK_DATE;
-    const parsed = new Date(dateStr);
+    let s = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+        s = s.replace(" ", "T") + "+08:00";
+    }
+    const parsed = new Date(s);
     return isNaN(parsed.getTime()) ? FALLBACK_DATE : parsed;
 }
 
@@ -211,9 +215,9 @@ function toBriefNews(item: RawNewsItem, sourceName: string): BriefNewsLike {
 async function fetchText(url: string, options?: FetchOptions): Promise<string> {
     try {
         const response = await fetch(url, {
-            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
+            signal: AbortSignal.timeout(options?.fetch_timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
-                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "User-Agent": options?.fetch_user_agent ?? USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
             },
@@ -237,9 +241,9 @@ async function fetchText(url: string, options?: FetchOptions): Promise<string> {
 async function fetchJson(url: string, options?: FetchOptions): Promise<unknown> {
     try {
         const response = await fetch(url, {
-            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
+            signal: AbortSignal.timeout(options?.fetch_timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
-                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "User-Agent": options?.fetch_user_agent ?? USER_AGENT,
                 "Accept": "application/json, text/plain, */*",
             },
             redirect: "follow",
@@ -353,10 +357,10 @@ async function decodeOneGoogleNewsUrl(
                 body: formData,
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-                    "User-Agent": options?.userAgent ?? USER_AGENT,
+                    "User-Agent": options?.fetch_user_agent ?? USER_AGENT,
                     "Referer": "https://news.google.com/",
                 },
-                signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
+                signal: AbortSignal.timeout(options?.fetch_timeout ?? DEFAULT_TIMEOUT_MS),
             },
         );
         if (!response.ok) {
@@ -866,7 +870,7 @@ async function fetchRssFeed(feedKey: string, options?: FetchOptions): Promise<Br
         }
 
         // Collect URLs to resolve (limit to MAX_DECODE_ITEMS)
-        const limit = options?.maxDecodeItems ?? MAX_DECODE_ITEMS;
+        const limit = options?.fetch_max_decode_items ?? MAX_DECODE_ITEMS;
         const urlsToResolve = rawItems.slice(0, limit).map((item) => item.url);
         const resolved = await resolveGoogleNewsUrls(urlsToResolve, options);
 

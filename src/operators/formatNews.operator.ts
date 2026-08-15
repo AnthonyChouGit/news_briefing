@@ -3,13 +3,14 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
-import { LanguageSchema } from "../types/language.enum.js";
+import { LanguageSchema, type Language } from "../types/language.enum.js";
+
 export const FormatNewsOptionsSchema = z.object({
     language: LanguageSchema.default('English'),
+    time_zone: z.string().optional(),
     debug: z.coerce.boolean().default(false)
 });
 export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
-import { type Language } from "../types/language.enum.js";
 
 // ── Telegram MarkdownV2 helpers ─────────────────────────────────────
 
@@ -74,29 +75,25 @@ const LANGUAGE_LOCALE: Record<string, string> = {
 
 // ── Formatting functions ────────────────────────────────────────────
 
-/** Build a localised date header from the newest article across all categories. */
+/** Build a localised date header for the news briefing. */
 function buildDateHeader(
     all_items: Map<NewsCategory, Map<string, BriefNewsLike>>,
     language: Language,
-): string | undefined {
-    let latest: Date | undefined;
-    for (const items of all_items.values()) {
-        for (const item of items.values()) {
-            if (!latest || item.source_date > latest) latest = item.source_date;
-        }
-    }
-    if (!latest) latest = new Date();
-
+    time_zone?: string,
+): string {
+    const now = new Date();
     const locale = LANGUAGE_LOCALE[language] ?? "en-US";
-    const dateStr = latest.toLocaleDateString(locale, {
+    const dateStr = now.toLocaleDateString(locale, {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
+        ...(time_zone ? { timeZone: time_zone } : {}),
     });
-    const timeStr = latest.toLocaleTimeString(locale, {
+    const timeStr = now.toLocaleTimeString(locale, {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
+        ...(time_zone ? { timeZone: time_zone } : {}),
     });
     const dateTimeStr = `${dateStr} ${timeStr}`;
 
@@ -118,7 +115,7 @@ function sortCategories(categories: NewsCategory[]): NewsCategory[] {
     });
 }
 
-function formatItemDate(date: Date, language: Language): string {
+function formatItemDate(date: Date, language: Language, time_zone?: string): string {
     const locale = LANGUAGE_LOCALE[language] ?? "en-US";
     return date.toLocaleString(locale, {
         month: "numeric",
@@ -126,6 +123,7 @@ function formatItemDate(date: Date, language: Language): string {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
+        ...(time_zone ? { timeZone: time_zone } : {}),
     });
 }
 
@@ -139,7 +137,7 @@ function formatItemDate(date: Date, language: Language): string {
  * bullet 2
  * ```
  */
-function formatArticle(item: BriefNewsLike, language: Language): string {
+function formatArticle(item: BriefNewsLike, language: Language, time_zone?: string): string {
     const title = escapeMarkdownV2(item.title);
     const source = escapeMarkdownV2(item.source_name);
     const url = item.url;
@@ -147,7 +145,7 @@ function formatArticle(item: BriefNewsLike, language: Language): string {
 
     let dateStr = "";
     if (item.source_date && item.source_date.getTime() > 0) {
-        dateStr = ` ${escapeMarkdownV2(formatItemDate(item.source_date, language))}`;
+        dateStr = ` ${escapeMarkdownV2(formatItemDate(item.source_date, language, time_zone))}`;
     }
 
     const parts: string[] = [
@@ -168,6 +166,7 @@ function formatCategorySection(
     category: NewsCategory,
     items: Map<string, BriefNewsLike>,
     language: Language,
+    time_zone?: string,
 ): string | undefined {
     // Sort articles by date, newest first.
     const sorted = [...items.values()].sort(
@@ -180,19 +179,19 @@ function formatCategorySection(
     const name = CATEGORY_LABELS[language]?.[category] ?? CATEGORY_LABELS["English"]![category] ?? category;
     const header = `${emoji} *${escapeMarkdownV2(name)}*`;
 
-    const articleBlocks = sorted.map((item) => formatArticle(item, language));
+    const articleBlocks = sorted.map((item) => formatArticle(item, language, time_zone));
     return `${header}\n${articleBlocks.join("\n\n")}`;
 }
 
 /** Format all news items into a Telegram MarkdownV2 message. */
 function formatTelegramMarkdown(
     all_items: Map<NewsCategory, Map<string, BriefNewsLike>>,
-    options: { language: Language },
+    options: FormatNewsOptions,
 ): string {
     const sections: string[] = [];
 
     // Date header — use the most recent source_date across all items.
-    const dateHeader = buildDateHeader(all_items, options.language);
+    const dateHeader = buildDateHeader(all_items, options.language, options.time_zone);
     if (dateHeader) sections.push(dateHeader);
 
     // Sort categories in preferred display order.
@@ -202,7 +201,7 @@ function formatTelegramMarkdown(
         const items = all_items.get(category);
         if (!items || items.size === 0) continue;
 
-        const section = formatCategorySection(category, items, options.language);
+        const section = formatCategorySection(category, items, options.language, options.time_zone);
         if (section) sections.push(section);
     }
 

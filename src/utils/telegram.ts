@@ -75,19 +75,19 @@ function splitMessage(message: string, maxSize = 4000): string[] {
 export class GrammyTelegramClient extends TelegramClient {
     private readonly bot: Bot;
 
-    constructor(config: { token: string }) {
+    constructor(config: { telegram_token: string }) {
         super();
-        this.bot = new Bot(config.token);
+        this.bot = new Bot(config.telegram_token);
     }
 
     async sendMessage(channel: string, message: string, options?: { parse_mode?: TelegramParseMode, chunk_size?: number }): Promise<void> {
-        const parseMode = options?.parse_mode ?? "MarkdownV2";
+        const parseMode = options?.parse_mode;
         const chunkSize = options?.chunk_size ?? 4000;
         const chunks = splitMessage(message, chunkSize);
 
         for (let i = 0; i < chunks.length; i++) {
             await this.bot.api.sendMessage(channel, chunks[i]!, {
-                parse_mode: parseMode,
+                ...(parseMode ? { parse_mode: parseMode } : {})
             });
             if (i < chunks.length - 1) {
                 await new Promise((resolve) => setTimeout(resolve, 500));

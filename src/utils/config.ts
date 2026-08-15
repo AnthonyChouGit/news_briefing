@@ -18,18 +18,20 @@ export const DbConfigSchema = z.object({
 });
 export type DbConfig = z.infer<typeof DbConfigSchema>;
 
-export const AICientConfigSchema = z.object({
-    api_key: z.string().nonempty(),
-    base_url: z.string().nonempty(),
-    model: z.string().nonempty(),
-    instruction: z.string().nonempty().optional(),
-    timeout: z.coerce.number().int().positive().default(300000),
-    max_retries: z.coerce.number().int().positive().default(3)
+export const AIClientConfigSchema = z.object({
+    ai_api_key: z.string().nonempty(),
+    ai_base_url: z.string().nonempty(),
+    ai_model: z.string().nonempty(),
+    ai_instruction: z.string().nonempty().optional(),
+    ai_timeout: z.coerce.number().int().positive().default(300000),
+    ai_max_retries: z.coerce.number().int().positive().default(3)
 });
-export type AICientConfig = z.infer<typeof AICientConfigSchema>;
+export type AIClientConfig = z.infer<typeof AIClientConfigSchema>;
+export const AICientConfigSchema = AIClientConfigSchema;
+export type AICientConfig = AIClientConfig;
 
 export const TelegramConfigSchema = z.object({
-    token: z.string().nonempty()
+    telegram_token: z.string().nonempty()
 });
 export type TelegramConfig = z.infer<typeof TelegramConfigSchema>;
 
@@ -42,6 +44,22 @@ export const InputSchema = z.object({
 });
 export type Input = z.infer<typeof InputSchema>;
 
+export const ErrorHandlerConfigSchema = z.object({
+    error_channels: z.string().default("")
+        .transform((val) => val?.split(",").map((s) => s.trim()))
+});
+export type ErrorHandlerConfig = z.infer<typeof ErrorHandlerConfigSchema>;
+
+export const CronConfigSchema = z.object({
+    cron_expr: z.string().optional(),
+    time_zone: z.string().optional()
+});
+export type CronConfig = z.infer<typeof CronConfigSchema>;
+
+export const DagConfigSchema = z.object({
+    dag_timeout: z.coerce.number().positive().optional()
+});
+export type DagConfig = z.infer<typeof DagConfigSchema>;
 
 export const ConfigSchema = DbConfigSchema
     .and(AICientConfigSchema)
@@ -53,7 +71,10 @@ export const ConfigSchema = DbConfigSchema
     .and(SummarizeNewsOptionsSchema)
     .and(TruncateNewsOptionsSchema)
     .and(TelegramConfigSchema)
-    .and(InputSchema);
+    .and(InputSchema)
+    .and(ErrorHandlerConfigSchema)
+    .and(CronConfigSchema)
+    .and(DagConfigSchema);
 
 export type Config = z.infer<typeof ConfigSchema>;
 

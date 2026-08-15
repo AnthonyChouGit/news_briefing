@@ -3,10 +3,10 @@ import { type BriefNewsLike, BriefNewsLikeSchema } from "../types/brief_news.ent
 import { type NewsCategory, NewsCategorySchema } from "../types/news_category.enum.js";
 import { Piscina } from "piscina";
 export const ReadOptionsSchema = z.object({
-    timeout: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional(),
-    maxBodyChars: z.coerce.number().int().nonnegative().optional(),
-    concurrency: z.coerce.number().int().positive().optional(),
+    read_timeout: z.coerce.number().int().nonnegative().optional(),
+    read_user_agent: z.string().nonempty().optional(),
+    read_max_body_chars: z.coerce.number().int().nonnegative().optional(),
+    read_concurrency: z.coerce.number().int().positive().optional(),
     debug: z.coerce.boolean().default(false)
 });
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;

@@ -5,9 +5,9 @@ import { NewsCategorySchema, type NewsCategory } from "../types/news_category.en
 import { Piscina } from "piscina";
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 export const FetchOptionsSchema = z.object({
-    timeout: z.coerce.number().int().nonnegative().optional(),
-    maxDecodeItems: z.coerce.number().int().nonnegative().optional(),
-    userAgent: z.string().nonempty().optional(),
+    fetch_timeout: z.coerce.number().int().nonnegative().optional(),
+    fetch_max_decode_items: z.coerce.number().int().nonnegative().optional(),
+    fetch_user_agent: z.string().nonempty().optional(),
     debug: z.coerce.boolean().default(false)
 });
 export type FetchOptions = z.infer<typeof FetchOptionsSchema>;

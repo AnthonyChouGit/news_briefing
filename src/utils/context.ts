@@ -4,6 +4,7 @@ import { Piscina } from "piscina";
 import { GrammyTelegramClient } from "./telegram.js";
 import { BriefNews } from "../types/brief_news.entity.js";
 import { OpenAIClient } from "./ai.js";
+import { TelegramErrorHandler } from "./error.js";
 
 export interface InitData {
     inputs: Record<string, unknown>,
@@ -19,6 +20,7 @@ export class ExecutionContext {
     private readonly send_client: GrammyTelegramClient;
     private readonly repository: Repository<BriefNews>;
     private readonly config: Config;
+    private readonly error_handler: TelegramErrorHandler;
 
     constructor(config: Config) {
         this.data_source = new DataSource({
@@ -39,6 +41,8 @@ export class ExecutionContext {
         this.send_client = new GrammyTelegramClient(config);
 
         this.config = config;
+
+        this.error_handler = new TelegramErrorHandler(this.send_client, config.error_channels);
     }
 
     public async init(): Promise<InitData> {
@@ -48,17 +52,22 @@ export class ExecutionContext {
             repository: this.repository,
             ai_client: this.ai_client,
             send_client: this.send_client,
+            error_handler: this.error_handler
         };
         const options = {
-            timeout: this.config.timeout,
-            maxDecodeItems: this.config.maxDecodeItems,
-            userAgent: this.config.userAgent,
-            time_window_days: this.config.time_window_days,
-            max_items_per_category: this.config.max_items_per_category,
-            maxBodyChars: this.config.maxBodyChars,
-            concurrency: this.config.concurrency,
+            fetch_timeout: this.config.fetch_timeout,
+            fetch_max_decode_items: this.config.fetch_max_decode_items,
+            fetch_user_agent: this.config.fetch_user_agent,
+            read_timeout: this.config.read_timeout,
+            read_user_agent: this.config.read_user_agent,
+            read_max_body_chars: this.config.read_max_body_chars,
+            read_concurrency: this.config.read_concurrency,
+            history_time_window_days: this.config.history_time_window_days,
+            truncate_max_items_per_category: this.config.truncate_max_items_per_category,
             language: this.config.language,
-            parse_mode: this.config.parse_mode,
+            time_zone: this.config.time_zone,
+            send_parse_mode: this.config.send_parse_mode,
+            send_chunk_size: this.config.send_chunk_size,
             debug: this.config.debug,
         };
         const inputs = {

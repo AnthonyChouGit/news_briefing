@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "CONFIG_PATH=./src/test.env npx tsx src/main.ts",
+    "test_cron": "CONFIG_PATH=./src/test.env npx tsx src/cron_main.ts",
+    "build": "tsc",
+    "start": "node ./dist/main.js"
   },
   "keywords": [],
   "author": "",
@@ -16,8 +19,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "axios": "^1.18.1",
     "class-validator": "^0.15.1",
+    "cron": "^4.4.0",
     "dotenv": "^17.4.2",
     "grammy": "^1.45.1",
     "openai": "^6.49.0",

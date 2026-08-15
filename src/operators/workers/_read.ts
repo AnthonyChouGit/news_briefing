@@ -317,8 +317,11 @@ function extractTime(rawHtml: string): Date | undefined {
     for (const pat of patterns) {
         const m = rawHtml.match(pat);
         if (m && m[1]) {
-            const unescaped = htmlUnescape(m[1].trim());
-            const parsed = new Date(unescaped);
+            let s = htmlUnescape(m[1].trim());
+            if (/^\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)) {
+                s = s.replace(/\//g, "-").replace(" ", "T") + "+08:00";
+            }
+            const parsed = new Date(s);
             if (!isNaN(parsed.getTime())) {
                 return parsed;
             }
@@ -334,9 +337,9 @@ function extractTime(rawHtml: string): Date | undefined {
 async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
     try {
         const response = await fetch(url, {
-            signal: AbortSignal.timeout(options?.timeout ?? DEFAULT_TIMEOUT_MS),
+            signal: AbortSignal.timeout(options?.read_timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
-                "User-Agent": options?.userAgent ?? USER_AGENT,
+                "User-Agent": options?.read_user_agent ?? USER_AGENT,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
             },
@@ -380,8 +383,8 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
         return items;
     }
 
-    const maxBody = options?.maxBodyChars ?? MAX_BODY_CHARS;
-    const concurrencyLimit = options?.concurrency ?? CONCURRENCY;
+    const maxBody = options?.read_max_body_chars ?? MAX_BODY_CHARS;
+    const concurrencyLimit = options?.read_concurrency ?? CONCURRENCY;
     const limit = pLimit(concurrencyLimit);
 
     const tasks = Array.from(items.values()).map((item) => {

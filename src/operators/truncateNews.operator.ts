@@ -4,7 +4,7 @@ import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
 export const TruncateNewsOptionsSchema = z.object({
-    max_items_per_category: z.coerce.number().int().positive().optional().default(5),
+    truncate_max_items_per_category: z.coerce.number().int().positive().optional().default(5),
     debug: z.coerce.boolean().default(false)
 });
 export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
@@ -22,7 +22,7 @@ type TruncateNewsOutput = z.infer<typeof TruncateNewsOutputSchema>;
 export default async function truncateNews({ inputs, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
         const deduped_items: Map<NewsCategory, Map<string, BriefNewsLike>> = (inputs as TruncateNewsInput).truncate_input_items;
-        const max_items_per_category: number = (options as TruncateNewsOptions).max_items_per_category;
+        const max_items_per_category: number = (options as TruncateNewsOptions).truncate_max_items_per_category;
         const truncated_items = new Map<NewsCategory, Map<string, BriefNewsLike>>(
             Array.from(deduped_items.entries(), ([category, items]) => {
                 if (items.size <= max_items_per_category)
