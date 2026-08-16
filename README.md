@@ -11,71 +11,50 @@ It periodically gathers news across multiple categories, filters fresh stories, 
 The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
 
 ```mermaid
-flowchart TD
-    %% Main Entry / Exit
-    Start([🚀 Start Pipeline])
-    Done([🏁 Complete])
-    ErrSink(["🚨 ErrorOperator<br/><i>(Notify Telegram Error Channels)</i>"])
+flowchart LR
+    %% Inputs
+    InCat(["🏷️ categories"])
+    InChan(["📢 channels"])
+    
+    %% Ingestion & Deduplication
+    Fetch["FetchNews"]
+    Hist[("HistoryNews")]
+    Filter1["FilterRecency<br/><i>(post-fetch)</i>"]
+    Dedupe["DedupeNews"]
+    
+    InCat --> Fetch --> Filter1 --> Dedupe
+    InCat --> Hist --> Dedupe
 
-    %% Stage 1: Ingestion
-    subgraph S1 ["1. Ingestion & History"]
-        direction TB
-        Fetch["🌐 FetchNewsOperator<br/><code>Piscina Worker Threads</code>"]
-        Filter1["⏱️ FilterRecencyOperator<br/><code>Post-fetch date filter</code>"]
-        Hist[("🗄️ HistoryNewsOperator<br/><code>Query PostgreSQL</code>")]
-        
-        Fetch --> Filter1
-    end
+    %% Processing & Summarization
+    Truncate["TruncateNews"]
+    Read["ReadNews"]
+    Filter2["FilterRecency<br/><i>(post-read)</i>"]
+    Summarize["SummarizeNews"]
 
-    %% Stage 2: Processing & AI Enrichment
-    subgraph S2 ["2. Processing & AI Enrichment"]
-        direction TB
-        Dedupe["🧠 DedupeNewsOperator<br/><code>Exact ID + AI Event Matching</code>"]
-        Truncate["✂️ TruncateNewsOperator<br/><code>Cap max items per category</code>"]
-        Read["📖 ReadNewsOperator<br/><code>Piscina Worker Threads</code>"]
-        Filter2["⏱️ FilterRecencyOperator<br/><code>Post-read date filter</code>"]
-        Summarize["✨ SummarizeNewsOperator<br/><code>LLM Headlines & Bullets</code>"]
+    Dedupe --> Truncate --> Read --> Filter2 --> Summarize
 
-        Dedupe --> Truncate --> Read --> Filter2 --> Summarize
-    end
+    %% Output & Persistence
+    Format["FormatNews"]
+    Send["SendNews"]
+    Save[("SaveNews")]
+    Merge{"MergeStatus"}
+    Success([🏁 success])
 
-    %% Stage 3: Delivery & Persistence
-    subgraph S3 ["3. Delivery & Persistence"]
-        direction TB
-        Format["📝 FormatNewsOperator<br/><code>Telegram MarkdownV2</code>"]
-        Send["📢 SendNewsOperator<br/><code>Broadcast to Telegram</code>"]
-        Save[("💾 SaveNewsOperator<br/><code>Persist to PostgreSQL</code>")]
-        Merge{"🔄 MergeStatusOperator<br/><code>Wait for Send & Save</code>"}
-
-        Format --> Send
-        Send --> Merge
-        Save --> Merge
-    end
-
-    %% Flow Connections
-    Start --> Fetch
-    Start --> Hist
-
-    Filter1 --> Dedupe
-    Hist --> Dedupe
-
-    Summarize --> Format
+    Summarize --> Format --> Send
+    InChan --> Send
     Summarize --> Save
 
-    Merge --> Done
+    Send --> Merge
+    Save --> Merge
+    Merge --> Success
 
-    %% Error Handling
-    S1 -. "on error" .-> ErrSink
-    S2 -. "on error" .-> ErrSink
-    S3 -. "on error" .-> ErrSink
-
-    %% Node Styling
+    %% Styling
     classDef default fill:#1f2430,stroke:#3b4252,stroke-width:1px,color:#cbccc6;
-    classDef startEnd fill:#191e2a,stroke:#73d0ff,stroke-width:2px,color:#73d0ff;
-    classDef errStyle fill:#331c24,stroke:#f28779,stroke-width:1.5px,color:#f28779;
+    classDef io fill:#191e2a,stroke:#73d0ff,stroke-width:1.5px,color:#73d0ff;
+    classDef merge fill:#2b2f3a,stroke:#e6b450,stroke-width:1.5px,color:#e6b450;
     
-    class Start,Done startEnd;
-    class ErrSink errStyle;
+    class InCat,InChan,Success io;
+    class Merge merge;
 ```
 
 ---
