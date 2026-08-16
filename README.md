@@ -11,49 +11,52 @@ It periodically gathers news across multiple categories, filters fresh stories, 
 The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
 
 ```mermaid
-flowchart LR
-    %% Inputs
-    InCat(["🏷️ categories"])
-    InChan(["📢 channels"])
-    
-    %% Ingestion & Deduplication
-    Fetch["FetchNews"]
-    Hist[("HistoryNews")]
-    Filter1["FilterRecency<br/><i>(post-fetch)</i>"]
-    Dedupe["DedupeNews"]
-    
-    InCat --> Fetch --> Filter1 --> Dedupe
-    InCat --> Hist --> Dedupe
+flowchart TD
+    Categories(["🏷️ categories"])
+    Channels(["📢 channels"])
 
-    %% Processing & Summarization
-    Truncate["TruncateNews"]
-    Read["ReadNews"]
-    Filter2["FilterRecency<br/><i>(post-read)</i>"]
-    Summarize["SummarizeNews"]
+    Fetch["🌐 FetchNewsOperator"]
+    Hist[("🗄️ HistoryNewsOperator")]
+    Filter1["⏱️ FilterRecencyOperator (post-fetch)"]
+    Dedupe["🧠 DedupeNewsOperator"]
 
-    Dedupe --> Truncate --> Read --> Filter2 --> Summarize
+    Categories --> Fetch
+    Categories --> Hist
+    Fetch --> Filter1
+    Filter1 --> Dedupe
+    Hist --> Dedupe
 
-    %% Output & Persistence
-    Format["FormatNews"]
-    Send["SendNews"]
-    Save[("SaveNews")]
-    Merge{"MergeStatus"}
-    Success([🏁 success])
+    Truncate["✂️ TruncateNewsOperator"]
+    Read["📖 ReadNewsOperator"]
+    Filter2["⏱️ FilterRecencyOperator (post-read)"]
+    Summarize["✨ SummarizeNewsOperator"]
 
-    Summarize --> Format --> Send
-    InChan --> Send
+    Dedupe --> Truncate
+    Truncate --> Read
+    Read --> Filter2
+    Filter2 --> Summarize
+
+    Format["📝 FormatNewsOperator"]
+    Send["📢 SendNewsOperator"]
+    Save[("💾 SaveNewsOperator")]
+    Merge{"🔄 MergeStatusOperator"}
+    Success(["🏁 success"])
+
+    Summarize --> Format
+    Format --> Send
+    Channels --> Send
+
     Summarize --> Save
 
     Send --> Merge
     Save --> Merge
     Merge --> Success
 
-    %% Styling
-    classDef default fill:#1f2430,stroke:#3b4252,stroke-width:1px,color:#cbccc6;
-    classDef io fill:#191e2a,stroke:#73d0ff,stroke-width:1.5px,color:#73d0ff;
-    classDef merge fill:#2b2f3a,stroke:#e6b450,stroke-width:1.5px,color:#e6b450;
+    classDef default fill:#1f2430,stroke:#3b4252,stroke-width:1px,color:#cbccc6,font-size:14px;
+    classDef io fill:#191e2a,stroke:#73d0ff,stroke-width:1.5px,color:#73d0ff,font-size:14px;
+    classDef merge fill:#2b2f3a,stroke:#e6b450,stroke-width:1.5px,color:#e6b450,font-size:14px;
     
-    class InCat,InChan,Success io;
+    class Categories,Channels,Success io;
     class Merge merge;
 ```
 
