@@ -6,91 +6,6 @@ It periodically gathers news across multiple categories, filters fresh stories, 
 
 ---
 
-## Architecture & Workflow
-
-The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
-
-```mermaid
-flowchart TD
-    Categories(["🏷️ categories"])
-    Channels(["📢 channels"])
-
-    %% Primary Pipeline Operators
-    Fetch["🌐 FetchNewsOperator"]
-    Hist[("🗄️ HistoryNewsOperator")]
-    Filter1["⏱️ FilterRecencyOperator (post-fetch)"]
-    Dedupe["🧠 DedupeNewsOperator"]
-    Truncate["✂️ TruncateNewsOperator"]
-    Read["📖 ReadNewsOperator"]
-    Filter2["⏱️ FilterRecencyOperator (post-read)"]
-    Summarize["✨ SummarizeNewsOperator"]
-    Format["📝 FormatNewsOperator"]
-    Send["📢 SendNewsOperator"]
-    Save[("💾 SaveNewsOperator")]
-    Merge{"🔄 MergeStatusOperator"}
-
-    %% Error Handler
-    ErrorOp["🚨 ErrorOperator<br/><code>In: err_code, err_obj</code>"]
-
-    %% Terminal Outputs
-    Success(["✅ success = true"])
-    Failure(["❌ success = false"])
-
-    %% Normal Data Flow
-    Categories --> Fetch
-    Categories --> Hist
-    Fetch --> Filter1
-    Filter1 --> Dedupe
-    Hist --> Dedupe
-
-    Dedupe --> Truncate
-    Truncate --> Read
-    Read --> Filter2
-    Filter2 --> Summarize
-
-    Summarize --> Format
-    Format --> Send
-    Channels --> Send
-
-    Summarize --> Save
-
-    Send --> Merge
-    Save --> Merge
-    Merge --> Success
-
-    %% Error Branch Flow
-    Fetch -. "error" .-> ErrorOp
-    Hist -. "error" .-> ErrorOp
-    Filter1 -. "error" .-> ErrorOp
-    Dedupe -. "error" .-> ErrorOp
-    Truncate -. "error" .-> ErrorOp
-    Read -. "error" .-> ErrorOp
-    Filter2 -. "error" .-> ErrorOp
-    Summarize -. "error" .-> ErrorOp
-    Format -. "error" .-> ErrorOp
-    Send -. "error" .-> ErrorOp
-    Save -. "error" .-> ErrorOp
-    Merge -. "error" .-> ErrorOp
-
-    ErrorOp --> Failure
-
-    %% Styling
-    classDef default fill:#1f2430,stroke:#3b4252,stroke-width:1px,color:#cbccc6,font-size:14px;
-    classDef io fill:#191e2a,stroke:#73d0ff,stroke-width:1.5px,color:#73d0ff,font-size:14px;
-    classDef merge fill:#2b2f3a,stroke:#e6b450,stroke-width:1.5px,color:#e6b450,font-size:14px;
-    classDef errNode fill:#331c24,stroke:#f28779,stroke-width:1.5px,color:#f28779,font-size:14px;
-    classDef successNode fill:#192e24,stroke:#a6cc70,stroke-width:1.5px,color:#a6cc70,font-size:14px;
-    classDef failNode fill:#331c24,stroke:#f28779,stroke-width:1.5px,color:#f28779,font-size:14px;
-    
-    class Categories,Channels io;
-    class Merge merge;
-    class ErrorOp errNode;
-    class Success successNode;
-    class Failure failNode;
-```
-
----
-
 ## Key Features
 
 - **Multi-Category Ingestion:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`.
@@ -105,7 +20,88 @@ flowchart TD
 
 ---
 
-## Directory Structure
+## Quick Start
+
+Deploy and run the full stack (App + PostgreSQL) in minutes using Docker Compose.
+
+### 1. Clone & Configure
+
+```bash
+git clone <repo-url>
+cd news_briefing
+cp example.env .env
+```
+
+Edit `.env` with your credentials and preferences:
+
+| Variable | Required | Default | Description |
+| :--- | :---: | :---: | :--- |
+| `database_host` | Yes | `news_db` | PostgreSQL host (`news_db` for Docker) |
+| `database_port` | No | `5432` | PostgreSQL port |
+| `database_user` | Yes | — | PostgreSQL username |
+| `database_password` | Yes | — | PostgreSQL password |
+| `database_name` | Yes | — | PostgreSQL database name |
+| `ai_api_key` | Yes | — | API key for OpenAI or compatible provider |
+| `ai_base_url` | Yes | — | Base URL for LLM provider (e.g. `https://api.openai.com/v1`) |
+| `ai_model` | Yes | — | Model identifier (e.g. `gpt-4o-mini`, `claude-3-5-sonnet`) |
+| `ai_timeout` | No | `300000` | AI request timeout in milliseconds |
+| `ai_max_retries` | No | `3` | AI request retry count |
+| `telegram_token` | Yes | — | Telegram Bot token from [@BotFather](https://t.me/botfather) |
+| `categories` | Yes | — | Comma-separated categories: `international, football, realmadrid, f1, ai, mlb, shenzhen, tabletennis` |
+| `channels` | Yes | — | Comma-separated target Telegram chat/channel IDs |
+| `language` | No | `English` | Output language: `English`, `Chinese`, `Spanish`, `French`, `German`, `Italian`, `Portuguese`, `Russian`, `Japanese`, `Korean` |
+| `cron_expr` | Required for Cron | — | 5-field cron schedule (e.g. `0 8,12,18,22 * * *`) |
+| `time_zone` | No | `UTC` | Timezone for cron schedule & date headers |
+| `filter_recency_td_hours` | No | `24` | Maximum age of news in hours |
+| `history_time_window_days` | No | `3` | Lookback window (days) for historical deduplication |
+| `send_parse_mode` | No | `MarkdownV2` | Telegram parse mode (`MarkdownV2`, `HTML`, `Markdown`) |
+| `send_chunk_size` | No | `4000` | Max character length per Telegram message |
+| `error_channels` | No | `""` | Comma-separated channel IDs for fatal error alerts |
+| `dag_timeout` | No | `900000` | Overall DAG execution timeout (ms) |
+| `debug` | No | `false` | Enable verbose DAG and operator logging |
+
+### 2. Build & Launch with Docker Compose
+
+```bash
+# 1. Compile TypeScript and bundle release files into build/
+npm run build
+
+# 2. Start containers in background
+cd build
+docker compose up -d --build
+```
+
+### 3. Manage & Monitor
+
+```bash
+# View live application logs
+docker compose logs -f news_briefing
+
+# View database logs
+docker compose logs -f news_db
+
+# Stop services
+docker compose down
+```
+
+---
+
+## Developer Guide
+
+### Architecture & LightDAG Pipeline
+
+The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
+</p>
+
+- **True Parallelism:** `FetchNewsOperator` and `ReadNewsOperator` spawn isolated worker threads using **Piscina** off the main event loop for high-throughput scraping and parsing.
+- **Deduplication Engine:** `DedupeNewsOperator` takes both freshly fetched items and past items from `HistoryNewsOperator`, combining hash filtering and semantic LLM event matching.
+- **Dual Outputs:** `SummarizeNewsOperator` splits results into parallel delivery (`FormatNewsOperator` ➔ `SendNewsOperator`) and persistence (`SaveNewsOperator`), which converge at `MergeStatusOperator`.
+- **Fault-Tolerant Error Handling:** If any operator encounters an unrecoverable failure, LightDAG routes the `{ err_code, err_obj }` payload to `ErrorOperator` to alert designated error channels without silent failures.
+
+### Project Structure
 
 ```
 .
@@ -115,6 +111,8 @@ flowchart TD
 ├── package.json              # Project scripts and dependencies
 ├── tsconfig.json             # TypeScript compiler settings
 ├── example.env               # Environment configuration template
+├── docs/
+│   └── architecture.svg      # Pipeline architecture diagram
 └── src/
     ├── main.ts               # One-shot CLI runner
     ├── cron_main.ts          # Scheduled Cron runner
@@ -128,143 +126,39 @@ flowchart TD
     └── utils/                # Database context, OpenAI client, Telegram, Config
 ```
 
----
+### Local Development Setup
 
-## Getting Started
+#### Prerequisites
+- **Node.js**: `>= 20.0.0`
+- **PostgreSQL**: `>= 16`
+- **OpenAI-compatible API key** & **Telegram Bot token**
 
-### Prerequisites
-
-- **Node.js**: `v20.x` or `v22.x+`
-- **PostgreSQL**: `v16+` / `v17+`
-- **OpenAI / Compatible LLM API Key**
-- **Telegram Bot Token** (from [@BotFather](https://t.me/botfather))
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repo-url>
-   cd news_briefing
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment Variables:**
-   Copy the template and edit your secrets:
-   ```bash
-   cp example.env .env
-   ```
-
----
-
-## Configuration Reference
-
-Edit `.env` (or pass environment variables) to customize the pipeline:
-
-| Variable | Required | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `database_host` | Yes | `localhost` | PostgreSQL host |
-| `database_port` | No | `5432` | PostgreSQL port |
-| `database_user` | Yes | — | PostgreSQL username |
-| `database_password` | Yes | — | PostgreSQL password |
-| `database_name` | Yes | — | PostgreSQL database name |
-| `ai_api_key` | Yes | — | API key for OpenAI or compatible provider |
-| `ai_base_url` | Yes | — | Base URL for LLM provider (e.g. `https://api.openai.com/v1`) |
-| `ai_model` | Yes | — | Model identifier (e.g. `gpt-4o-mini`, `gpt-4o`, `claude-3-5-sonnet`) |
-| `ai_timeout` | No | `300000` | AI request timeout (ms) |
-| `ai_max_retries` | No | `3` | AI request retry count |
-| `telegram_token` | Yes | — | Telegram Bot token |
-| `categories` | Yes | — | Comma-separated categories: `international, football, realmadrid, f1, ai, mlb, shenzhen, tabletennis` |
-| `channels` | Yes | — | Comma-separated target Telegram chat/channel IDs |
-| `language` | No | `English` | Output language: `English`, `Chinese`, `Spanish`, `French`, `German`, `Italian`, `Portuguese`, `Russian`, `Japanese`, `Korean` |
-| `filter_recency_td_hours` | No | `24` | Maximum age of news in hours |
-| `history_time_window_days` | No | `3` | Lookback window (days) for historical deduplication |
-| `send_parse_mode` | No | `MarkdownV2` | Telegram parse mode (`MarkdownV2`, `HTML`, `Markdown`) |
-| `send_chunk_size` | No | `4000` | Max character length per Telegram message |
-| `error_channels` | No | `""` | Comma-separated channel IDs for fatal error alerts |
-| `cron_expr` | Required for Cron | — | 5-field cron expression (e.g. `0 8,12,18,22 * * *`) |
-| `time_zone` | No | `UTC` | Timezone for cron schedule & date headers |
-| `dag_timeout` | No | `900000` | Overall DAG execution timeout (ms) |
-| `debug` | No | `false` | Enable verbose DAG and operator logging |
-
----
-
-## Usage
-
-### 1. Run a Single News Briefing (One-Shot)
-
-Run the full pipeline once and exit:
-
+#### 1. Install Dependencies
 ```bash
-# Using tsx directly
-npx tsx src/main.ts
-
-# Or with custom config file
-CONFIG_PATH=./src/test.env npm test
+npm install
 ```
 
-### 2. Run Scheduled Cron Service
-
-Run the application as a continuous background daemon using the schedule in `cron_expr`:
+#### 2. Run in Development Mode
 
 ```bash
-# Using tsx
-npx tsx src/cron_main.ts
+# Run one-shot briefing immediately
+CONFIG_PATH=./src/test.env npx tsx src/main.ts
+# or using npm script
+npm test
 
-# Or with test script
-CONFIG_PATH=./src/test.env npm run test_cron
+# Run scheduled cron daemon locally
+CONFIG_PATH=./src/test.env npx tsx src/cron_main.ts
+# or using npm script
+npm run test_cron
 ```
 
----
-
-## Production Build & Deployment
-
-### Local Production Build
-
-To compile TypeScript and prepare the distribution artifacts:
-
+#### 3. Type Checking & Verification
 ```bash
-npm run build
+npx tsc --noEmit
 ```
 
-This compiles TypeScript into `build/dist/` and copies all necessary production files (`Dockerfile`, `docker-compose.yml`, `package.json`, `package-lock.json`, `.env`, `init.sql`) into the `build/` directory.
-
-### Running with Docker Compose
-
-1. Build the release package:
-   ```bash
-   npm run build
-   ```
-
-2. Start the service and database:
-   ```bash
-   cd build
-   docker compose up -d --build
-   ```
-
-3. View live container logs:
-   ```bash
-   docker compose logs -f news_briefing
-   ```
-
-4. Stop services:
-   ```bash
-   docker compose down
-   ```
-
----
-
-## Development & Testing
-
-- **Type Checking:**
-  ```bash
-  npx tsc --noEmit
-  ```
-- **Operator Details:**
-  For deep technical specs on each pipeline operator (inputs, outputs, concurrency models, and error codes), see the [Operators Reference](file:///root/source/news_briefing/src/operators/README.md).
+#### 4. Operator Specifications
+For deep technical specs on each pipeline operator (input/output schemas, concurrency models, and error codes), see the [Operators Reference](src/operators/README.md).
 
 ---
 
