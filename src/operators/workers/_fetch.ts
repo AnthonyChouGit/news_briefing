@@ -799,6 +799,11 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
         category: "international",
         sourceName: "Google News",
     },
+    gn_chinanews: {
+        url: "https://news.google.com/rss/search?q=China&hl=en-US&gl=US&ceid=US:en",
+        category: "international",
+        sourceName: "Google News",
+    },
     gn_realmadrid: {
         url: "https://news.google.com/rss/search?q=%22Real+Madrid%22+when:2d&hl=en-US&gl=US&ceid=US:en",
         category: "realmadrid",
@@ -914,6 +919,7 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
         fetchCnnWorld,
         fetchCnnSport,
         (opts) => fetchRssFeed("gn_international", opts),
+        (opts) => fetchRssFeed("gn_chinanews", opts),
     ],
     football: [
         fetchBbcSport,
