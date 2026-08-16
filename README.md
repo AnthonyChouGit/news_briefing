@@ -15,32 +15,38 @@ flowchart TD
     Categories(["🏷️ categories"])
     Channels(["📢 channels"])
 
+    %% Primary Pipeline Operators
     Fetch["🌐 FetchNewsOperator"]
     Hist[("🗄️ HistoryNewsOperator")]
     Filter1["⏱️ FilterRecencyOperator (post-fetch)"]
     Dedupe["🧠 DedupeNewsOperator"]
+    Truncate["✂️ TruncateNewsOperator"]
+    Read["📖 ReadNewsOperator"]
+    Filter2["⏱️ FilterRecencyOperator (post-read)"]
+    Summarize["✨ SummarizeNewsOperator"]
+    Format["📝 FormatNewsOperator"]
+    Send["📢 SendNewsOperator"]
+    Save[("💾 SaveNewsOperator")]
+    Merge{"🔄 MergeStatusOperator"}
 
+    %% Error Handler
+    ErrorOp["🚨 ErrorOperator<br/><code>In: err_code, err_obj</code>"]
+
+    %% Terminal Outputs
+    Success(["✅ success = true"])
+    Failure(["❌ success = false"])
+
+    %% Normal Data Flow
     Categories --> Fetch
     Categories --> Hist
     Fetch --> Filter1
     Filter1 --> Dedupe
     Hist --> Dedupe
 
-    Truncate["✂️ TruncateNewsOperator"]
-    Read["📖 ReadNewsOperator"]
-    Filter2["⏱️ FilterRecencyOperator (post-read)"]
-    Summarize["✨ SummarizeNewsOperator"]
-
     Dedupe --> Truncate
     Truncate --> Read
     Read --> Filter2
     Filter2 --> Summarize
-
-    Format["📝 FormatNewsOperator"]
-    Send["📢 SendNewsOperator"]
-    Save[("💾 SaveNewsOperator")]
-    Merge{"🔄 MergeStatusOperator"}
-    Success(["🏁 success"])
 
     Summarize --> Format
     Format --> Send
@@ -52,12 +58,35 @@ flowchart TD
     Save --> Merge
     Merge --> Success
 
+    %% Error Branch Flow
+    Fetch -. "error" .-> ErrorOp
+    Hist -. "error" .-> ErrorOp
+    Filter1 -. "error" .-> ErrorOp
+    Dedupe -. "error" .-> ErrorOp
+    Truncate -. "error" .-> ErrorOp
+    Read -. "error" .-> ErrorOp
+    Filter2 -. "error" .-> ErrorOp
+    Summarize -. "error" .-> ErrorOp
+    Format -. "error" .-> ErrorOp
+    Send -. "error" .-> ErrorOp
+    Save -. "error" .-> ErrorOp
+    Merge -. "error" .-> ErrorOp
+
+    ErrorOp --> Failure
+
+    %% Styling
     classDef default fill:#1f2430,stroke:#3b4252,stroke-width:1px,color:#cbccc6,font-size:14px;
     classDef io fill:#191e2a,stroke:#73d0ff,stroke-width:1.5px,color:#73d0ff,font-size:14px;
     classDef merge fill:#2b2f3a,stroke:#e6b450,stroke-width:1.5px,color:#e6b450,font-size:14px;
+    classDef errNode fill:#331c24,stroke:#f28779,stroke-width:1.5px,color:#f28779,font-size:14px;
+    classDef successNode fill:#192e24,stroke:#a6cc70,stroke-width:1.5px,color:#a6cc70,font-size:14px;
+    classDef failNode fill:#331c24,stroke:#f28779,stroke-width:1.5px,color:#f28779,font-size:14px;
     
-    class Categories,Channels,Success io;
+    class Categories,Channels io;
     class Merge merge;
+    class ErrorOp errNode;
+    class Success successNode;
+    class Failure failNode;
 ```
 
 ---
