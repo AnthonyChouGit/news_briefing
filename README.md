@@ -4,21 +4,22 @@ An automated, AI-powered news briefing and summarization pipeline built with Typ
 
 It periodically gathers news across multiple categories, filters fresh stories, deduplicates against past coverage using AI, extracts article contents in parallel worker threads, synthesizes high-quality summaries with LLMs, and broadcasts formatted digests directly to Telegram channels.
 
----
+## Architecture & Features
 
-## Key Features
+The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
+</p>
 
 - **Multi-Category Ingestion:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`.
-- **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`).
-- **Two-Stage Smart Deduplication:**
-  1. *Exact ID Matching:* Quickly eliminates known historical hashes from PostgreSQL.
-  2. *AI Semantic Matching:* Detects multi-source duplicates and tracks event development stages, keeping only the freshest, most informative updates.
-- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (English, Chinese, Spanish, Japanese, etc.).
-- **Telegram Broadcasting:** Formats messages into clean Telegram `MarkdownV2` syntax with auto-chunking (up to 4000 chars per message).
-- **Scheduled or One-Off Execution:** Run once directly via CLI or keep running as a background service via integrated Cron scheduling.
-- **Robust Error Handling:** Catches and isolates errors at each DAG node, routing failures to dedicated error channels without crashing silent loops.
+- **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop.
+- **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) to track development stages and eliminate redundant coverage.
+- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`).
+- **Telegram Delivery & Dual Persistence:** Formats messages into clean Telegram `MarkdownV2` syntax with auto-chunking (`FormatNewsOperator` ➔ `SendNewsOperator`) while simultaneously persisting news to PostgreSQL (`SaveNewsOperator`), converging at `MergeStatusOperator`.
+- **Scheduled or One-Off Execution:** Run once directly via CLI or continuously as a background service via integrated Cron scheduling.
+- **Fault-Tolerant Error Handling:** Catches and isolates errors at each DAG node, routing failures to `ErrorOperator` to alert designated Telegram error channels without silent failures.
 
----
 
 ## Quick Start
 
@@ -84,22 +85,7 @@ docker compose logs -f news_db
 docker compose down
 ```
 
----
-
 ## Developer Guide
-
-### Architecture & LightDAG Pipeline
-
-The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG**) engine where each step is an isolated, strongly-typed **Operator**.
-
-<p align="center">
-  <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
-</p>
-
-- **True Parallelism:** `FetchNewsOperator` and `ReadNewsOperator` spawn isolated worker threads using **Piscina** off the main event loop for high-throughput scraping and parsing.
-- **Deduplication Engine:** `DedupeNewsOperator` takes both freshly fetched items and past items from `HistoryNewsOperator`, combining hash filtering and semantic LLM event matching.
-- **Dual Outputs:** `SummarizeNewsOperator` splits results into parallel delivery (`FormatNewsOperator` ➔ `SendNewsOperator`) and persistence (`SaveNewsOperator`), which converge at `MergeStatusOperator`.
-- **Fault-Tolerant Error Handling:** If any operator encounters an unrecoverable failure, LightDAG routes the `{ err_code, err_obj }` payload to `ErrorOperator` to alert designated error channels without silent failures.
 
 ### Project Structure
 
@@ -160,7 +146,6 @@ npx tsc --noEmit
 #### 4. Operator Specifications
 For deep technical specs on each pipeline operator (input/output schemas, concurrency models, and error codes), see the [Operators Reference](src/operators/README.md).
 
----
 
 ## License
 
