@@ -515,18 +515,6 @@ function extractMarca(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
     const seen = new Set<string>();
 
-    // Timeline section: <li> with <a href>, <time datetime>, <span> title
-    const timelinePattern =
-        /<li class="ue-c-widget-news__list-item">\s*<a[^>]*href="([^"]+)"[^>]*>\s*<time datetime="([^"]+)"[^>]*>[^<]*<\/time>\s*<span>(.*?)<\/span>/gs;
-    for (const m of html.matchAll(timelinePattern)) {
-        const url = m[1] ?? "";
-        const dt = m[2] ?? "";
-        const title = stripTags(m[3] ?? "");
-        if (!title || title.length < 10 || seen.has(url) || !isArticleUrl(url)) continue;
-        seen.add(url);
-        results.push({ title, url, time: dt, category: "realmadrid" });
-    }
-
     // Article cards: <h2> with backward <a href> search
     const h2Pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
     for (const m of html.matchAll(h2Pattern)) {
@@ -538,6 +526,7 @@ function extractMarca(html: string): RawNewsItem[] {
         const lastLink = aLinks[aLinks.length - 1];
         const url = lastLink?.[1] ?? "";
         if (!url || seen.has(url) || !isArticleUrl(url)) continue;
+        if (!url.toLowerCase().includes("/real-madrid/") && !url.toLowerCase().includes("/real_madrid/")) continue;
         seen.add(url);
         seen.add(title);
         results.push({ title, url, time: "", category: "realmadrid" });
@@ -811,9 +800,24 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
         sourceName: "Google News",
     },
     gn_realmadrid: {
-        url: "https://news.google.com/rss/search?q=Real+Madrid+latest&hl=en-US&gl=US&ceid=US:en",
+        url: "https://news.google.com/rss/search?q=%22Real+Madrid%22+when:2d&hl=en-US&gl=US&ceid=US:en",
         category: "realmadrid",
         sourceName: "Google News",
+    },
+    managing_madrid: {
+        url: "https://www.managingmadrid.com/rss/index.xml",
+        category: "realmadrid",
+        sourceName: "Managing Madrid",
+    },
+    as_realmadrid: {
+        url: "https://en.as.com/rss/soccer/real_madrid.xml",
+        category: "realmadrid",
+        sourceName: "AS",
+    },
+    marca_realmadrid: {
+        url: "https://e00-marca.uecdn.es/rss/futbol/real-madrid.xml",
+        category: "realmadrid",
+        sourceName: "Marca",
     },
     gn_f1: {
         url: "https://news.google.com/rss/search?q=Formula+1+Ferrari+Leclerc&hl=en-US&gl=US&ceid=US:en",
@@ -921,7 +925,9 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
         (opts) => fetchRssFeed("gn_worldcup", opts),
     ],
     realmadrid: [
-        fetchMarca,
+        (opts) => fetchRssFeed("managing_madrid", opts),
+        (opts) => fetchRssFeed("as_realmadrid", opts),
+        (opts) => fetchRssFeed("marca_realmadrid", opts),
         (opts) => fetchRssFeed("gn_realmadrid", opts),
     ],
     f1: [

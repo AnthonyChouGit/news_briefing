@@ -168,18 +168,24 @@ function formatCategorySection(
     language: Language,
     time_zone?: string,
 ): string | undefined {
-    // Sort articles by date, newest first.
-    const sorted = [...items.values()].sort(
-        (a, b) => b.source_date.getTime() - a.source_date.getTime(),
-    );
+    const validItems: BriefNewsLike[] = [];
+    for (const item of items.values()) {
+        if (item.bullets?.length && item.title && item.url && item.source_name) {
+            validItems.push(item);
+        }
+    }
 
-    if (sorted.length === 0) return undefined;
+    if (validItems.length === 0) return undefined;
+
+    if (validItems.length > 1) {
+        validItems.sort((a, b) => b.source_date.getTime() - a.source_date.getTime());
+    }
 
     const emoji = CATEGORY_EMOJI[category] ?? "📌";
     const name = CATEGORY_LABELS[language]?.[category] ?? CATEGORY_LABELS["English"]![category] ?? category;
     const header = `${emoji} *${escapeMarkdownV2(name)}*`;
 
-    const articleBlocks = sorted.map((item) => formatArticle(item, language, time_zone));
+    const articleBlocks = validItems.map((item) => formatArticle(item, language, time_zone));
     return `${header}\n${articleBlocks.join("\n\n")}`;
 }
 
