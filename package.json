@@ -6,8 +6,8 @@
   "scripts": {
     "test": "CONFIG_PATH=./src/test.env npx tsx src/main.ts",
     "test_cron": "CONFIG_PATH=./src/test.env npx tsx src/cron_main.ts",
-    "build": "tsc",
-    "start": "node ./dist/main.js"
+    "build": "tsc && cp package.json build/package.json && cp package-lock.json build/package-lock.json && cp Dockerfile build/Dockerfile && cp docker-compose.yml build/docker-compose.yml && cp src/.env build/.env && cp init.sql build/init.sql",
+    "start": "node ./build/dist/main.js"
   },
   "keywords": [],
   "author": "",
