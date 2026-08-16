@@ -8,15 +8,28 @@ import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 const DEDUPE_INSTRUCTION = `You are a news deduplication engine. You will receive a JSON object with two arrays:
 
 - "fetched": Newly fetched news articles.
-- "covered": News articles that have already been reported.
+- "covered": News articles that have already been reported in previous briefings.
 
 Each article has these fields: hash_id, url, title, source_date, source_name, category, and optionally bullets (summary points).
 
-Your task is to identify which articles in "fetched" are redundant because they report on the **same underlying news event** as any article in "covered". Two articles cover the same event if they describe the same real-world occurrence — for example, the same incident, announcement, policy decision, or development — even if they are from different sources, use different wording, or focus on different angles of that event.
+Your task is to identify which articles in "fetched" are redundant and return their hash_id values. Redundancy occurs in two ways:
 
-Do NOT consider articles as duplicates merely because they share the same broad topic or category. They must refer to the same specific event.
+1. Redundancy against "covered" (Cross-Source / History Duplication):
+An article in "fetched" is redundant if it reports on the **same underlying news event** as any article in "covered". Two articles cover the same event if they describe the same real-world occurrence — for example, the same incident, announcement, policy decision, sporting event, scientific discovery, or geopolitical development — even if they are from different sources, use different wording, or focus on different angles of that event.
+Do NOT consider articles as duplicates merely because they share the same broad topic or category; they must refer to the same specific event.
 
 EXCEPTION — New Developments: If a fetched article covers the same event as a covered article but reports a **genuinely new development** — such as a newly announced outcome, a significant escalation, a reversal, an official response that was previously absent, or materially new facts — then do NOT mark it as redundant. However, apply this exception with extreme strictness. You must be highly certain that the article contains substantive new information that materially changes or advances the story. Minor additional details, reworded summaries, opinion commentary, or a different source reporting the same facts do NOT qualify as new developments. When in doubt, mark the article as redundant.
+
+2. Duplication within "fetched" (Intra-Batch Duplication):
+Multiple articles within "fetched" may report on the **same underlying news event** (for example, the same event reported by multiple news sources, or multiple news items tracking different development stages of the same event).
+For any cluster of articles in "fetched" covering the same event:
+- Keep ONLY the single **latest item with the latest development stage** (the one representing the most advanced stage of the event and the most up-to-date information, taking into account the reported developments and source_date).
+- Mark all other earlier, redundant, or multi-source duplicate articles in "fetched" for that event as redundant (include their hash_id values in the output).
+
+3. Combined Scenario:
+If an event appears in "covered" and also has multiple articles in "fetched":
+- If none of the fetched articles report a genuinely new development compared to "covered", mark ALL fetched articles for that event as redundant.
+- If one or more fetched articles report a genuinely new development compared to "covered", keep ONLY the single latest item with the latest development stage among them, and mark all other fetched articles for that event as redundant.
 
 Respond with a JSON object containing an "ids" array with ONLY the hash_id values of the redundant articles from the "fetched" list (e.g. {"ids": ["hash1", "hash2"]}). If no articles are redundant, respond with {"ids": []}.`;
 
@@ -28,7 +41,7 @@ function dedupeById(items: Map<string, BriefNewsLike>, covered_ids: string[]): M
 }
 
 async function dedupeByEvent(items: Map<string, BriefNewsLike>, covered_items: Map<string, BriefNewsLike>, ai_client: AIClient): Promise<Map<string, BriefNewsLike>> {
-    if (items.size === 0 || covered_items.size === 0)
+    if (items.size === 0 || (items.size <= 1 && covered_items.size === 0))
         return items;
 
     const res_schema = z.object({
@@ -74,10 +87,12 @@ export default async function dedupeNews({ inputs, requires, options }: Operator
 
         const dedupePromises = Array.from(dedupe_input_items.entries(),
             async ([category, items]) => {
-                if (history_items.has(category)) {
-                    dedupeById(items, Array.from(history_items.get(category)!.keys()));
-                    await dedupeByEvent(items, history_items.get(category)!, ai_client);
+                const history_for_category = history_items.get(category);
+                if (history_for_category && history_for_category.size > 0) {
+                    dedupeById(items, Array.from(history_for_category.keys()));
                 }
+                const covered_map = history_for_category ?? new Map<string, BriefNewsLike>();
+                await dedupeByEvent(items, covered_map, ai_client);
             }
         );
         await Promise.all(dedupePromises);

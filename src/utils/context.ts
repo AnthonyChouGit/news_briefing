@@ -69,6 +69,7 @@ export class ExecutionContext {
             send_parse_mode: this.config.send_parse_mode,
             send_chunk_size: this.config.send_chunk_size,
             debug: this.config.debug,
+            filter_recency_td_hours: this.config.filter_recency_td_hours,
         };
         const inputs = {
             categories: this.config.categories,

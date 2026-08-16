@@ -26,7 +26,8 @@ Every operator (except `ErrorOperator`) follows a `try/catch` pattern: on succes
 | [MergeStatusOperator](#8-mergestatusoperator) | 8 | Synchronous — iterates entries |
 | [SaveNewsOperator](#9-savenewsoperator) | 9 | Concurrent promises per category (`Promise.all`) |
 | [SendNewsOperator](#10-sendnewsoperator) | 10 | Concurrent promises per channel (`Promise.allSettled`) |
-| [ErrorOperator](#11-erroroperator) | — | Synchronous — logs and returns |
+| [FilterRecencyOperator](#11-filterrecencyoperator) | 11 | Synchronous — iterates entries |
+| [ErrorOperator](#12-erroroperator) | — | Synchronous — logs and returns |
 
 ---
 
@@ -73,7 +74,7 @@ Fetches raw news articles from external sources across one or more categories. T
 
 ### Purpose
 
-Removes duplicate news articles by comparing newly fetched items against previously covered history items. Uses two deduplication strategies: exact ID matching and AI-powered semantic event matching.
+Removes duplicate news articles by comparing newly fetched items against previously covered history items as well as detecting duplicates within the newly fetched items themselves. Uses two deduplication strategies: exact ID matching and AI-powered semantic event matching.
 
 ### Schemas
 
@@ -86,9 +87,9 @@ Removes duplicate news articles by comparing newly fetched items against previou
 
 ### Behavior
 
-1. For each category present in both `dedupe_input_items` and `history_items`:
-   - **`dedupeById`** — Synchronous. Removes items whose `hash_id` already exists in the history.
-   - **`dedupeByEvent`** — Async. Sends the remaining items and history to the AI client with a carefully crafted prompt. The AI identifies articles covering the **same real-world event** (not just the same topic). Returns hash IDs of redundant articles, which are then deleted from the map.
+1. For each category in `dedupe_input_items`:
+   - **`dedupeById`** — Synchronous. If category exists in history, removes items whose `hash_id` already exists in the history.
+   - **`dedupeByEvent`** — Async. Sends the remaining items and history to the AI client with a carefully crafted prompt. The AI identifies articles covering the **same real-world event** (both against history and among fetched items from multiple sources or development stages). For intra-fetched duplicates, it keeps the single latest item with the latest development stage. Returns hash IDs of redundant articles, which are then deleted from the map.
 2. Returns the original `dedupe_input_items` map (mutated in place).
 
 ### Concurrency Model
@@ -116,13 +117,13 @@ Limits the number of articles per category to a configurable maximum, keeping on
 | **Input** | `truncate_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `truncated_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 3, err_obj }` |
-| **Options** | `max_items_per_category: number` (positive integer, default: `5`) |
+| **Options** | `truncate_max_items_per_category: number` (positive integer, default: `5`), `debug: boolean` (default: `false`) |
 
 ### Behavior
 
 1. Iterates over every category in `truncate_input_items`.
-2. If a category has ≤ `max_items_per_category` items, it is passed through unchanged.
-3. Otherwise, creates a new Map containing only the first `max_items_per_category` items (by Map insertion order).
+2. If a category has ≤ `truncate_max_items_per_category` items, it is passed through unchanged.
+3. Otherwise, creates a new Map containing only the first `truncate_max_items_per_category` items (by Map insertion order).
 4. Returns a **new** Map (the input is not mutated).
 
 ### Concurrency Model
@@ -184,14 +185,14 @@ Generates AI-written bullet-point summaries and rewritten titles for each articl
 | **Output (default)** | `summarized_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 5, err_obj }` |
 | **Requires** | `ai_client: AIClient` |
-| **Options** | `language: Language` |
+| **Options** | `language: Language` (default: `'English'`), `debug: boolean` (default: `false`) |
 
 ### Behavior
 
 1. Creates one promise per category by calling `summarizeEvents(items, ai_client, language)`.
 2. Each `summarizeEvents` call:
    - Sends all articles in the category as a JSON payload to the AI client with a detailed summarization prompt.
-   - Expects the AI to return a JSON array with rewritten titles and 3–5 bullet points (10–50 chars each) per article.
+   - Expects the AI to return a JSON array with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article.
    - Validates the response against a strict Zod schema (correct hash IDs, bullet count, length constraints).
    - Mutates each `BriefNewsLike` item in place, setting `bullets` and `title`.
 3. Awaits all category promises with `Promise.all`.
@@ -223,7 +224,7 @@ Fetches previously reported news articles from a database (TypeORM repository) w
 | **Output (default)** | `history_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 6, err_obj }` |
 | **Requires** | `repository: Repository<BriefNews>` |
-| **Options** | `time_window_days: number` (positive, default: `3`) |
+| **Options** | `time_window_days: number` (positive, default: `3`), `debug: boolean` (default: `false`) |
 
 ### Behavior
 
@@ -246,31 +247,31 @@ Fetches previously reported news articles from a database (TypeORM repository) w
 
 ### Purpose
 
-Converts the structured news data into a formatted string ready for delivery. The current implementation formats for Telegram MarkdownV2.
+Converts the structured news data into a formatted string ready for delivery. The current implementation formats for Telegram MarkdownV2. Also provided as `FormatNewsOperatorThread` for execution within worker threads.
 
 ### Schemas
 
 | Schema | Fields |
 |---|---|
 | **Input** | `format_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
-| **Output (default)** | `formatted_items: string` (non-empty) |
+| **Output (default)** | `news_text: string` (non-empty) |
 | **Output (error)** | `ErrorInfo { err_code: 7, err_obj }` |
-| **Options** | `language: Language` |
+| **Options** | `language: Language` (default: `'English'`), `time_zone?: string`, `debug: boolean` (default: `false`) |
 
 ### Behavior
 
 1. Calls `formatTelegramMarkdown(format_input_items, options)` which:
-   - Builds a localized date header from the most recent article's `source_date`.
+   - Builds a localized date header from the current timestamp and configured timezone.
    - Sorts categories in a preferred display order.
    - For each category, sorts articles by date (newest first) and renders them as Telegram MarkdownV2 with:
      - Category emoji + localized label as a bold header.
-     - Each article as `• [Title](url) — _Source_` with indented bullet points.
+     - Each article as `• *Title* Date [Source](url)` with indented bullet points.
    - Escapes all special MarkdownV2 characters.
-2. Returns the formatted string.
+2. Returns the formatted string (`news_text`).
 
 ### Concurrency Model
 
-**Synchronous — no concurrency.** The formatting is synchronous. All string construction happens on the main thread in a single call.
+**Synchronous — no concurrency.** The formatting is synchronous. All string construction happens on the main thread in a single call (or within a worker thread when using `FormatNewsOperatorThread`).
 
 ---
 
@@ -333,6 +334,7 @@ Persists the processed news items to a database (TypeORM repository) for future 
 | **Output (default)** | `saved: boolean` (default: `true`) |
 | **Output (error)** | `ErrorInfo { err_code: 9, err_obj }` |
 | **Requires** | `repository: Repository<BriefNews>` |
+| **Options** | `debug: boolean` (default: `false`) |
 
 ### Behavior
 
@@ -367,11 +369,11 @@ Delivers the formatted news text to one or more Telegram channels.
 | **Output (default)** | `sent: boolean` (default: `true`) |
 | **Output (error)** | `ErrorInfo { err_code: 10, err_obj }` |
 | **Requires** | `send_client: TelegramClient` |
-| **Options** | `parse_mode: TelegramParseMode` |
+| **Options** | `send_parse_mode: TelegramParseMode` (default: `"MarkdownV2"`), `send_chunk_size: number` (default: `4000`), `debug: boolean` (default: `false`) |
 
 ### Behavior
 
-1. Creates one promise per channel by calling `send_client.sendMessage(channel, news_text, { parse_mode })`.
+1. Creates one promise per channel by calling `send_client.sendMessage(channel, news_text, { parse_mode, chunk_size })`.
 2. Awaits all promises with `Promise.allSettled`.
 3. Iterates over results — logs rejected sends as expected errors via `logExpectedError` but does **not** throw.
 4. Returns `{ sent: true }` regardless of individual channel failures.
@@ -382,7 +384,49 @@ Delivers the formatted news text to one or more Telegram channels.
 
 ---
 
-## 11. ErrorOperator
+## 11. FilterRecencyOperator
+
+**File:** [`filterRecency.operator.ts`](./filterRecency.operator.ts)  
+**Name:** Configurable via constructor (default: `"filter_recency"`)  
+**Error Code:** `11`
+
+### Purpose
+
+Filters news articles based on their publication date (`source_date`), removing any articles that are older than a configurable time threshold (in hours). Typically used post-fetch and post-read to ensure only fresh news items proceed through the pipeline.
+
+### Schemas
+
+| Schema | Fields |
+|---|---|
+| **Input** | `filter_recency_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
+| **Output (default)** | `filtered_recency_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
+| **Output (error)** | `ErrorInfo { err_code: 11, err_obj }` |
+| **Options** | `filter_recency_td_hours: number` (positive number, default: `24`), `debug: boolean` (default: `false`) |
+
+### Behavior
+
+1. Computes the cutoff threshold: `earliest = new Date(Date.now() - filter_recency_td_hours * 60 * 60 * 1000)`.
+2. Iterates over all categories and their items in `filter_recency_input_items`.
+3. Deletes any article whose `source_date` is earlier than `earliest`.
+4. Returns the filtered map (mutated in place).
+
+### Concurrency Model
+
+**Synchronous — no concurrency.** Iterates synchronously over in-memory Map entries. No promises, no threads.
+
+### Constructor
+
+```typescript
+constructor(name: string = "filter_recency", input_map?: Record<string, string>, output_map?: Record<string, string>)
+```
+
+- `name` — Overrides the operator name (allows multiple instances such as `"post_fetch_filter_td"` and `"post_read_filter_td"` in a DAG).
+- `input_map` — Optional input task name mappings.
+- `output_map` — Optional output task name mappings.
+
+---
+
+## 12. ErrorOperator
 
 **File:** [`error.operator.ts`](./error.operator.ts)  
 **Name:** `error`  
@@ -390,7 +434,7 @@ Delivers the formatted news text to one or more Telegram channels.
 
 ### Purpose
 
-Terminal error handler. Logs the error that caused a pipeline failure and returns a `{ success: false }` signal.
+Terminal error handler. Logs the error that caused a pipeline failure, sends error notifications through the configured `ErrorHandler`, and returns a `{ success: false }` signal.
 
 ### Schemas
 
@@ -398,23 +442,25 @@ Terminal error handler. Logs the error that caused a pipeline failure and return
 |---|---|
 | **Input** | `ErrorInfo { err_code: number, err_obj: unknown }` |
 | **Output (default)** | `success: boolean` |
+| **Requires** | `error_handler: ErrorHandler` |
 
 ### Behavior
 
 1. Destructures `err_code` and `err_obj` from inputs.
 2. Extracts a human-readable message from `err_obj` (`.message` if it's an `Error`, otherwise `String()`).
 3. Constructs a UTC+8 timestamp.
-4. Logs `[timestamp] [Fatal Error] Program failed with code <err_code>: <message>` to `stderr`.
-5. Returns `{ success: false }`.
+4. Dispatches error notification via `error_handler.handleError({ err_code, err_obj })`.
+5. Logs `[timestamp] [Fatal Error] Program failed with code <err_code>: <message>` to `stderr`.
+6. Returns `{ success: false }`.
 
 ### Concurrency Model
 
-**Synchronous — no concurrency.** Performs a single `console.error` call and returns immediately.
+**Synchronous / Async error notification.** Dispatches error handling to the `ErrorHandler` and returns `{ success: false }`.
 
 ### Notes
 
 - This operator has **no error branch** in its `output_schemas` — it is the terminal sink for errors.
-- The timestamp is hardcoded to UTC+8. The timezone offset is computed manually via `Date.now() + 8 * 3600000`.
+- The timestamp is formatted in UTC+8.
 
 ---
 
@@ -424,14 +470,14 @@ None of the operators spawn actual OS threads directly. Thread-level parallelism
 
 | Strategy | Operators | True Parallelism? | Fault Tolerance |
 |---|---|:---:|---|
-| **Piscina worker threads** (`Promise.allSettled`) | `fetchNews`, `readNews` | ✅ Yes | Partial failures tolerated |
+| **Piscina worker threads** (`Promise.allSettled`) | `fetchNews`, `readNews`, `formatNews` *(thread variant)* | ✅ Yes | Partial failures tolerated |
 | **`Promise.all`** (concurrent async) | `dedupeNews`, `summarizeNews`, `historyNews`, `saveNews` | ❌ No (event loop) | All-or-nothing (one failure rejects all) |
 | **`Promise.allSettled`** (concurrent async) | `sendNews` | ❌ No (event loop) | Partial failures tolerated |
-| **Synchronous** | `truncateNews`, `formatNews`, `mergeStatus`, `error` | ❌ No | N/A |
+| **Synchronous** | `truncateNews`, `formatNews` *(sync variant)*, `mergeStatus`, `filterRecency`, `error` | ❌ No | N/A |
 
 ### Key distinction
 
-- **Worker threads (Piscina):** Used by `fetchNews` and `readNews`. These run JavaScript in separate OS threads, enabling true CPU parallelism. The heavy lifting (HTTP fetching, HTML parsing) happens off the main thread.
+- **Worker threads (Piscina):** Used by `fetchNews` and `readNews` (and optionally `formatNews` via `FormatNewsOperatorThread`). These run JavaScript in separate OS threads, enabling true CPU parallelism. The heavy lifting (HTTP fetching, HTML parsing) happens off the main thread.
 - **`Promise.all` / `Promise.allSettled`:** Used by the remaining async operators. These fire multiple async operations concurrently but all execute on the **same** Node.js event loop thread. Concurrency comes from overlapping I/O waits (network calls to AI APIs, database queries, Telegram API), not from parallel computation.
 
 ---
@@ -450,3 +496,4 @@ None of the operators spawn actual OS threads directly. Thread-level parallelism
 | 8 | `mergeStatus` | One or more upstream statuses not fulfilled |
 | 9 | `saveNews` | Database write failure |
 | 10 | `sendNews` | Unexpected error during Telegram send setup |
+| 11 | `filterRecency` | Error during date recency filtering |

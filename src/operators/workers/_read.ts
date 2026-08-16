@@ -231,6 +231,7 @@ const SOURCE_NAME_EXTRACTORS: Record<string, HtmlExtractor> = {
     "TechCrunch": extractTechcrunch,
     "Marca": extractMarca,
     "Managing Madrid": extractGeneric,
+    "Football España": extractGeneric,
     "AS": extractGeneric,
     "Formula 1": extractF1,
     "Motorsport.com": extractMotorsport,
@@ -257,6 +258,8 @@ const HOST_EXTRACTORS: Record<string, HtmlExtractor> = {
     "marca.com": extractMarca,
     "www.managingmadrid.com": extractGeneric,
     "managingmadrid.com": extractGeneric,
+    "football-espana.net": extractGeneric,
+    "www.football-espana.net": extractGeneric,
     "en.as.com": extractGeneric,
     "as.com": extractGeneric,
     "www.formula1.com": extractF1,
@@ -277,20 +280,24 @@ const SKIP_SOURCE_NAMES = new Set(["Motorsport.com"]);
 /** Hosts requiring browser automation — omitted from this module. */
 const SKIP_HOSTS = new Set(["news.qq.com"]);
 
+function isSkippedItem(item: BriefNewsLike): boolean {
+    if (SKIP_SOURCE_NAMES.has(item.source_name)) return true;
+    try {
+        const host = new URL(item.url).hostname.toLowerCase();
+        if (SKIP_HOSTS.has(host)) return true;
+    } catch {
+        // Invalid URL
+    }
+    return false;
+}
+
 /**
  * Select the right extractor for a BriefNews item, or `null` to skip.
  *
  * Priority: skip-list → source_name map → URL hostname map → generic fallback.
  */
 function getExtractorForItem(item: BriefNewsLike): HtmlExtractor | null {
-    if (SKIP_SOURCE_NAMES.has(item.source_name)) return null;
-
-    try {
-        const host = new URL(item.url).hostname.toLowerCase();
-        if (SKIP_HOSTS.has(host)) return null;
-    } catch {
-        // Invalid URL — will be caught later during fetch
-    }
+    if (isSkippedItem(item)) return null;
 
     const byName = SOURCE_NAME_EXTRACTORS[item.source_name];
     if (byName) return byName;
@@ -395,6 +402,9 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
 
     const tasks = Array.from(items.values()).map((item) => {
         return limit(async () => {
+            if (isSkippedItem(item)) {
+                return;
+            }
             const extractor = getExtractorForItem(item);
             if (!extractor) {
                 logExpectedError(new Error(`No extractor found for item: ${item.title}`));

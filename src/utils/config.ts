@@ -1,5 +1,7 @@
 import * as z from "zod";
 import dotenv from "dotenv";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { NewsCategorySchema } from "../types/news_category.enum.js";
 import { FetchOptionsSchema } from "../operators/fetchNews.operator.js";
 import { ReadOptionsSchema } from "../operators/readNews.operator.js";
@@ -8,6 +10,7 @@ import { HistoryNewsOptionsSchema } from "../operators/historyNews.operator.js";
 import { SendNewsOptionsSchema } from "../operators/sendNews.operator.js";
 import { SummarizeNewsOptionsSchema } from "../operators/summarizeNews.operator.js";
 import { TruncateNewsOptionsSchema } from "../operators/truncateNews.operator.js";
+import { FilterRecencyOptionsSchema } from "../operators/filterRecency.operator.js";
 
 export const DbConfigSchema = z.object({
     database_host: z.string().nonempty().default("localhost"),
@@ -74,14 +77,30 @@ export const ConfigSchema = DbConfigSchema
     .and(InputSchema)
     .and(ErrorHandlerConfigSchema)
     .and(CronConfigSchema)
-    .and(DagConfigSchema);
+    .and(DagConfigSchema)
+    .and(FilterRecencyOptionsSchema);
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-export const loadConfig = (config_path: string = ".env"): Config => {
-    const result = dotenv.config({ path: config_path });
-    if (result.error || !result.parsed)
-        throw result.error;
-    const config: Config = ConfigSchema.parse(result.parsed);
+export const loadConfig = (config_path?: string): Config => {
+    const candidatePaths = [
+        config_path,
+        process.env.CONFIG_PATH,
+        ".env",
+        join(process.cwd(), ".env"),
+        join(import.meta.dirname, ".env"),
+        join(import.meta.dirname, "../.env"),
+        join(import.meta.dirname, "test.env"),
+        join(import.meta.dirname, "../test.env")
+    ].filter((p): p is string => Boolean(p && p.trim()));
+
+    for (const p of candidatePaths) {
+        if (existsSync(p)) {
+            dotenv.config({ path: p });
+            break;
+        }
+    }
+
+    const config: Config = ConfigSchema.parse(process.env);
     return config;
-}
+};

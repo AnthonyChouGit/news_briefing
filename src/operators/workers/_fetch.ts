@@ -809,15 +809,10 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
         category: "realmadrid",
         sourceName: "Managing Madrid",
     },
-    as_realmadrid: {
-        url: "https://en.as.com/rss/soccer/real_madrid.xml",
+    football_espana: {
+        url: "https://football-espana.net/category/real-madrid/feed",
         category: "realmadrid",
-        sourceName: "AS",
-    },
-    marca_realmadrid: {
-        url: "https://e00-marca.uecdn.es/rss/futbol/real-madrid.xml",
-        category: "realmadrid",
-        sourceName: "Marca",
+        sourceName: "Football España",
     },
     gn_f1: {
         url: "https://news.google.com/rss/search?q=Formula+1+Ferrari+Leclerc&hl=en-US&gl=US&ceid=US:en",
@@ -839,8 +834,8 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
         category: "shenzhen",
         sourceName: "Google News",
     },
-    gn_worldcup: {
-        url: "https://news.google.com/rss/search?q=World+Cup+2026&hl=en-US&gl=US&ceid=US:en",
+    gn_football: {
+        url: "https://news.google.com/rss/search?q=(football+OR+soccer)+AND+(%22Champions+League%22+OR+%22Premier+League%22+OR+%22La+Liga%22+OR+%22Serie+A%22+OR+%22Bundesliga%22+OR+%22UEFA%22+OR+%22transfer+news%22)+-nfl+-rugby+-hockey&hl=en-US&gl=US&ceid=US:en",
         category: "football",
         sourceName: "Google News",
     },
@@ -922,12 +917,12 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
     ],
     football: [
         fetchBbcSport,
-        (opts) => fetchRssFeed("gn_worldcup", opts),
+        (opts) => fetchRssFeed("gn_football", opts),
     ],
     realmadrid: [
+        fetchMarca,
         (opts) => fetchRssFeed("managing_madrid", opts),
-        (opts) => fetchRssFeed("as_realmadrid", opts),
-        (opts) => fetchRssFeed("marca_realmadrid", opts),
+        (opts) => fetchRssFeed("football_espana", opts),
         (opts) => fetchRssFeed("gn_realmadrid", opts),
     ],
     f1: [

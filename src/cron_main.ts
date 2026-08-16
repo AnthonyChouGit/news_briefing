@@ -1,9 +1,8 @@
 import { run } from "./run.js";
 import { loadConfig, type Config } from "./utils/config.js";
-import { join } from "node:path";
 import { CronJob } from "cron";
 
-const config: Config = loadConfig(process.env.CONFIG_PATH ?? join(import.meta.dirname, ".env"));
+const config: Config = loadConfig(process.env.CONFIG_PATH);
 if (!config.cron_expr)
     throw Error("cron_expr is not set");
 const cron_job = CronJob.from({
