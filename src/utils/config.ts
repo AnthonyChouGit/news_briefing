@@ -23,7 +23,6 @@ export const AIClientConfigSchema = z.object({
     ai_api_key: z.string().nonempty(),
     ai_base_url: z.string().nonempty(),
     ai_model: z.string().nonempty(),
-    ai_instruction: z.string().nonempty().optional(),
     ai_timeout: z.coerce.number().int().positive().default(300000),
     ai_max_retries: z.coerce.number().int().positive().default(3)
 });
