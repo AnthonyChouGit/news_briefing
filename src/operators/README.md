@@ -56,6 +56,7 @@ Fetches raw news articles from external sources across one or more categories. T
 1. Destructures `categories` from inputs and `thread_pool` from requires.
 2. Calls `fetchAllCategories(categories, thread_pool, fetch_options)` which:
    - Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `fetchNewsByCategory` function from `workers/_fetch.js` in a separate worker thread.
+   - Automatically filters out paywalled and anti-bot protected domains (e.g. `reuters.com`, `wsj.com`, `bloomberg.com`, `ft.com`, `nytimes.com`, `cepr.org`, `dazn.com`, `news.qq.com`) via `BLOCKED_HOSTS` validation in `isArticleUrl`.
    - Awaits all tasks with `Promise.allSettled` — individual category failures are logged and skipped, not fatal.
    - Throws only if **all** categories fail to fetch.
 3. Returns the aggregated `Map<NewsCategory, Map<string, BriefNewsLike>>`.
@@ -89,7 +90,7 @@ Removes duplicate news articles by comparing newly fetched items against previou
 
 1. For each category in `dedupe_input_items`:
    - **`dedupeById`** — Synchronous. If category exists in history, removes items whose `hash_id` already exists in the history.
-   - **`dedupeByEvent`** — Async. Sends the remaining items and history to the AI client with a carefully crafted prompt. The AI identifies articles covering the **same real-world event** (both against history and among fetched items from multiple sources or development stages). For intra-fetched duplicates, it keeps the single latest item with the latest development stage. Returns hash IDs of redundant articles, which are then deleted from the map.
+   - **`dedupeByEvent`** — Async. Sends the remaining items and history to the AI client with a carefully crafted prompt. The AI identifies articles covering the **same real-world event** (both against history and among fetched items from multiple sources or development stages). For intra-fetched duplicates, it keeps the single latest item with the latest development stage. Returns hash IDs of redundant articles parsed through `jsonrepair` and validated with Zod, which are then deleted from the map.
 2. Returns the original `dedupe_input_items` map (mutated in place).
 
 ### Concurrency Model
@@ -155,9 +156,10 @@ Fetches the full article content (body text) for each previously-fetched brief n
 ### Behavior
 
 1. Dispatches **one Piscina worker thread task per category** via `pool.run()`, executing the `readNewsDetails` function from `workers/_read.js`.
-2. Awaits all tasks with `Promise.allSettled` — individual category failures are logged; the failed category is removed from the map.
-3. Throws only if **all** categories fail.
-4. Returns the enriched map (mutated in place — the input map is the same object as the output).
+2. Uses modern browser header emulation (`sec-ch-ua`, `sec-fetch-*`, etc.) to reliably retrieve article bodies across various news sites.
+3. Awaits all tasks with `Promise.allSettled` — individual category failures are logged; the failed category is removed from the map.
+4. Throws only if **all** categories fail.
+5. Returns the enriched map (mutated in place — the input map is the same object as the output).
 
 ### Concurrency Model
 
@@ -191,9 +193,9 @@ Generates AI-written bullet-point summaries and rewritten titles for each articl
 
 1. Creates one promise per category by calling `summarizeEvents(items, ai_client, language)`.
 2. Each `summarizeEvents` call:
-   - Sends all articles in the category as a JSON payload to the AI client with a detailed summarization prompt.
-   - Expects the AI to return a JSON array with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article.
-   - Validates the response against a strict Zod schema (correct hash IDs, bullet count, length constraints).
+   - Sends all articles in the category as a JSON payload to the AI client with detailed journalistic and formatting instructions (including strict quote escaping and pre-return JSON syntax validation).
+   - Expects the AI to return a JSON object with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article.
+   - Automatically repairs malformed JSON syntax (unescaped quotes, markdown blocks, etc.) using `jsonrepair` and validates the parsed structure with a strict Zod schema.
    - Mutates each `BriefNewsLike` item in place, setting `bullets` and `title`.
 3. Awaits all category promises with `Promise.all`.
 4. Returns the original input map (mutated in place).

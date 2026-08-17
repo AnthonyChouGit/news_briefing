@@ -12,10 +12,10 @@ The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG
   <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
 </p>
 
-- **Multi-Category Ingestion:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`.
-- **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop.
-- **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) to track development stages and eliminate redundant coverage.
-- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`).
+- **Multi-Category Ingestion & Smart Filtering:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`. Automatically filters out paywalled/anti-bot domains during feed parsing.
+- **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop, equipped with modern browser header emulation.
+- **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) protected by automated JSON repair to track development stages and eliminate redundant coverage.
+- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`), reinforced with strict schema formatting, quote escaping rules, and `jsonrepair` error-healing.
 - **Telegram Delivery & Dual Persistence:** Formats messages into clean Telegram `MarkdownV2` syntax with auto-chunking (`FormatNewsOperator` ➔ `SendNewsOperator`) while simultaneously persisting news to PostgreSQL (`SaveNewsOperator`), converging at `MergeStatusOperator`.
 - **Scheduled or One-Off Execution:** Run once directly via CLI or continuously as a background service via integrated Cron scheduling.
 - **Fault-Tolerant Error Handling:** Catches and isolates errors at each DAG node, routing failures to `ErrorOperator` to alert designated Telegram error channels without silent failures.
@@ -44,7 +44,8 @@ Edit `.env` with your credentials and preferences:
 | `database_name` | Yes | — | PostgreSQL database name |
 | `ai_api_key` | Yes | — | API key for OpenAI or compatible provider |
 | `ai_base_url` | Yes | — | Base URL for LLM provider (e.g. `https://api.openai.com/v1`) |
-| `ai_model` | Yes | — | Model identifier (e.g. `gpt-4o-mini`, `claude-3-5-sonnet`) |
+| `ai_model` | Yes | — | Model identifier (e.g. `gpt-4o-mini`, `gpt-5.6-luna`) |
+| `ai_reasoning_effort` | No | `medium` | Reasoning effort for reasoning models: `low`, `medium`, `high` |
 | `ai_timeout` | No | `300000` | AI request timeout in milliseconds |
 | `ai_max_retries` | No | `3` | AI request retry count |
 | `telegram_token` | Yes | — | Telegram Bot token from [@BotFather](https://t.me/botfather) |
