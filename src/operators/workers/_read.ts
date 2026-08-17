@@ -49,7 +49,7 @@ import { logExpectedError } from "../common/errors.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+    "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 const MAX_BODY_CHARS = Infinity; // No length limit on article body
 const CONCURRENCY = 5;
 const MAX_PARAGRAPHS = 100;
@@ -277,13 +277,23 @@ const HOST_EXTRACTORS: Record<string, HtmlExtractor> = {
 /** Sources whose article pages are skipped (e.g. Motorsport.com 403s but has RSS description pre-populated) */
 const SKIP_SOURCE_NAMES = new Set(["Motorsport.com"]);
 
-/** Hosts requiring browser automation — omitted from this module. */
-const SKIP_HOSTS = new Set(["news.qq.com"]);
+/** Hosts requiring browser automation, paywall subscriptions, or blocking automated HTTP scraping with Cloudflare/CloudFront bot challenge. */
+const SKIP_HOSTS = new Set([
+    "news.qq.com",
+    "cepr.org",
+    "dazn.com",
+    "reuters.com",
+    "wsj.com",
+    "bloomberg.com",
+    "ft.com",
+    "nytimes.com"
+]);
 
 function isSkippedItem(item: BriefNewsLike): boolean {
     if (SKIP_SOURCE_NAMES.has(item.source_name)) return true;
     try {
-        const host = new URL(item.url).hostname.toLowerCase();
+        let host = new URL(item.url).hostname.toLowerCase();
+        if (host.startsWith("www.")) host = host.slice(4);
         if (SKIP_HOSTS.has(host)) return true;
     } catch {
         // Invalid URL
@@ -353,8 +363,16 @@ async function fetchHtml(url: string, options?: ReadOptions): Promise<string> {
             signal: AbortSignal.timeout(options?.read_timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
                 "User-Agent": options?.read_user_agent ?? USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+                "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "document",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "none",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
             },
             redirect: "follow",
         });
@@ -403,6 +421,9 @@ export async function readNewsDetails({ items, options }: ReadArguments): Promis
     const tasks = Array.from(items.values()).map((item) => {
         return limit(async () => {
             if (isSkippedItem(item)) {
+                if (item.source_date.getTime() === 0) {
+                    item.source_date = new Date();
+                }
                 return;
             }
             const extractor = getExtractorForItem(item);

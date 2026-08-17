@@ -24,7 +24,8 @@ export const AIClientConfigSchema = z.object({
     ai_base_url: z.string().nonempty(),
     ai_model: z.string().nonempty(),
     ai_timeout: z.coerce.number().int().positive().default(300000),
-    ai_max_retries: z.coerce.number().int().positive().default(3)
+    ai_max_retries: z.coerce.number().int().positive().default(3),
+    ai_reasoning_effort: z.enum(["low", "medium", "high"]).default("medium")
 });
 export type AIClientConfig = z.infer<typeof AIClientConfigSchema>;
 export const AICientConfigSchema = AIClientConfigSchema;

@@ -12,13 +12,14 @@ export const SummarizeNewsOptionsSchema = z.object({
 export type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
 import { logExpectedError } from "./common/errors.js";
 import { type Language } from "../types/language.enum.js";
+import { jsonrepair } from "jsonrepair";
 
 const getSummarizeInstruction = (language: Language) => `You are a world-class senior news editor and summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and raw (the full article text).
 
 For EVERY article in the input, produce a high-quality, comprehensive, and journalistic summary. You must return a JSON object with an "items" array containing exactly one entry per input article, in the same order. Each entry must have:
 
 - "hash_id": The exact hash_id of the article (do not modify or generate new IDs).
-- "title": A comprehensive, informative, and engaging headline in ${language} (typically 20–60 characters in Chinese/Japanese or 10–25 words in Western languages) that accurately captures the core subject, action, context, and key figures/outcomes (e.g., "白宫报告：逾40国帮助中国规避美国关税，涉数十亿美元", "NTSB：瑞安航空客机发动机叶片断裂，碎片击碎舷窗致乘客半身被吸出", "芒西第131轰登顶道奇体育场队史本垒打王，道奇仍负酿酒人"). Avoid short, vague, or overly generic titles.
+- "title": A comprehensive, informative, and engaging headline in ${language} (typically 20–60 characters in Chinese/Japanese or 10–25 words in Western languages) that accurately captures the core subject, action, context, and key figures/outcomes (e.g., 《白宫报告：逾40国帮助中国规避美国关税，涉数十亿美元》, 《NTSB：瑞安航空客机发动机叶片断裂，碎片击碎舷窗致乘客半身被吸出》, 《芒西第131轰登顶道奇体育场队史本垒打王，道奇仍负酿酒人》). Avoid short, vague, or overly generic titles.
 - "bullets": An array of 2 to 4 detailed, substantive bullet points summarizing the article in ${language}.
 
 Summary and bullet point guidelines:
@@ -28,7 +29,14 @@ Summary and bullet point guidelines:
 - Non-Redundant: Ensure each bullet covers distinct aspects (e.g. 1st bullet: main occurrence/finding; 2nd bullet: key details, figures, or names; 3rd bullet: background context, quotes, reactions, or next steps).
 - Natural Flow: All titles and bullets MUST be written fluently in ${language}.
 
-Respond with a JSON object containing the "items" array (e.g. {"items": [...]}). Do not include any other text, explanation, or formatting.`;
+CRITICAL JSON SYNTAX & QUOTATION RULES:
+1. STRICT JSON VALIDITY: Your response must be 100% valid, parseable JSON conforming strictly to {"items": [...]}.
+2. QUOTATION ESCAPING (CRITICAL): Inside string values (titles and bullets), NEVER use raw unescaped ASCII double quotes (").
+   - When citing names, quotes, titles, or terms in Chinese/Japanese/CJK text, use typographic marks such as 「...」, 『...』, 《...》, or “...”.
+   - In Western languages, use single quotes ('...') or properly escaped double quotes (\\").
+3. NO TRAILING COMMAS: Never put trailing commas after the last element in arrays or objects.
+4. FINAL SYNTAX CHECK: Before finalizing your output, mentally validate the entire JSON string to ensure all quotes are properly closed/escaped, all braces and brackets match, and there are no syntax errors.
+5. PURE JSON ONLY: Output ONLY the raw JSON object without markdown code blocks, backticks, or any preamble/postscript text.`;
 
 const SummarizeNewsInputSchema = z.object({
     summarize_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
@@ -62,7 +70,7 @@ async function summarizeEvents(items: Map<string, BriefNewsLike>, ai_client: AIC
     const res_data = await ai_client.ask(payload, getSummarizeInstruction(language), res_schema);
 
     // Actually enforce the Zod validation!
-    const items_bullets = res_schema.parse(JSON.parse(res_data)).items;
+    const items_bullets = res_schema.parse(JSON.parse(jsonrepair(res_data))).items;
 
     const itemsList = [...items.values()];
     items_bullets.forEach((item, idx) => {

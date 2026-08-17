@@ -4,6 +4,7 @@ import { type NewsCategory } from "../types/news_category.enum.js";
 import { AIClient } from "../utils/ai.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
+import { jsonrepair } from "jsonrepair";
 
 const DEDUPE_INSTRUCTION = `You are a news deduplication engine. You will receive a JSON object with two arrays:
 
@@ -53,7 +54,7 @@ async function dedupeByEvent(items: Map<string, BriefNewsLike>, covered_items: M
     };
     const payload_json = JSON.stringify(payload);
     const response: string = await ai_client.ask(payload_json, DEDUPE_INSTRUCTION, res_schema);
-    const deduped_ids = res_schema.parse(JSON.parse(response)).ids;
+    const deduped_ids = res_schema.parse(JSON.parse(jsonrepair(response))).ids;
     dedupeById(items, deduped_ids);
     return items;
 }

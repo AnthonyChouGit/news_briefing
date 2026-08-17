@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { type ZodType } from "zod";
-import { AIClientConfigSchema, type AIClientConfig } from "./config.js";
+import { type AIClientConfig } from "./config.js";
 
 export abstract class AIClient {
     abstract ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string>;
@@ -11,17 +11,18 @@ export class OpenAIClient extends AIClient {
 
     private readonly model: string;
     private readonly client: OpenAI;
+    private readonly reasoning_effort: "low" | "medium" | "high";
 
     constructor(config: AIClientConfig) {
         super();
-        const valid_config = AIClientConfigSchema.parse(config);
         this.client = new OpenAI({
-            apiKey: valid_config.ai_api_key,
-            baseURL: valid_config.ai_base_url,
-            timeout: valid_config.ai_timeout,
-            maxRetries: valid_config.ai_max_retries
+            apiKey: config.ai_api_key,
+            baseURL: config.ai_base_url,
+            timeout: config.ai_timeout,
+            maxRetries: config.ai_max_retries
         });
-        this.model = valid_config.ai_model;
+        this.model = config.ai_model;
+        this.reasoning_effort = config.ai_reasoning_effort;
     }
 
     public async ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<string> {
@@ -33,7 +34,8 @@ export class OpenAIClient extends AIClient {
         const response = await this.client.chat.completions.create({
             model: this.model,
             messages: messages,
-            ...(response_schema ? { response_format: zodResponseFormat(response_schema, "Response Schema") } : {})
+            ...(response_schema ? { response_format: zodResponseFormat(response_schema, "response_schema") } : {}),
+            ...(this.reasoning_effort ? { reasoning_effort: this.reasoning_effort } : {})
         });
         // console.log("RAW RESPONSE:", JSON.stringify(response, null, 2));
         const message = response?.choices?.[0]?.message;

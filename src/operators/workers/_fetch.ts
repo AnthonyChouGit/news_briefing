@@ -71,7 +71,7 @@ import { type FetchOptions } from "../fetchNews.operator.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+    "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
 const MAX_DECODE_ITEMS = 5;
 const DROP_PARAMS = new Set([
     "fbclid", "gclid", "cmpid", "ocid", "ref", "source",
@@ -218,8 +218,16 @@ async function fetchText(url: string, options?: FetchOptions): Promise<string> {
             signal: AbortSignal.timeout(options?.fetch_timeout ?? DEFAULT_TIMEOUT_MS),
             headers: {
                 "User-Agent": options?.fetch_user_agent ?? USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+                "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "document",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "none",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
             },
             redirect: "follow",
         });
