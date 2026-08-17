@@ -159,6 +159,18 @@ function generateHashId(url: string, sourceName: string, title: string): string 
     return createHash("sha256").update(input).digest("hex");
 }
 
+/** Hosts requiring browser automation, paywall subscriptions, or blocking automated HTTP scraping with Cloudflare/CloudFront bot challenge. */
+const BLOCKED_HOSTS = new Set([
+    "news.qq.com",
+    "cepr.org",
+    "dazn.com",
+    "reuters.com",
+    "wsj.com",
+    "bloomberg.com",
+    "ft.com",
+    "nytimes.com",
+]);
+
 /** Validate that a URL is a plausible article URL (not a homepage, search, or Google News wrapper). */
 function isArticleUrl(url: string): boolean {
     if (!url.trim()) return false;
@@ -167,6 +179,9 @@ function isArticleUrl(url: string): boolean {
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
         if (!parsed.hostname) return false;
         if (parsed.hostname.includes("news.google.com")) return false;
+        let host = parsed.hostname.toLowerCase();
+        if (host.startsWith("www.")) host = host.slice(4);
+        if (BLOCKED_HOSTS.has(host)) return false;
         const path = parsed.pathname.replace(/\/+$/, "") || "/";
         const homePaths = new Set([
             "", "/", "/news", "/world", "/sport", "/latest",
