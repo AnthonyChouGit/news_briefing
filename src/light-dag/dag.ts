@@ -69,6 +69,7 @@ export class LightDag {
         const resolves = new Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>();
         for (const task of this.task_names) {
             const { promise, resolve, reject } = Promise.withResolvers<unknown>();
+            promise.catch(() => { });
             tasks.set(task, promise);
             resolves.set(task, { resolve, reject });
         }
