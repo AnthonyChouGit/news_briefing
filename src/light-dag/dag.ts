@@ -75,7 +75,11 @@ export class LightDag {
         this.log("run() started");
         let timeout_id: NodeJS.Timeout | undefined;
         if (this.timeout)
-            timeout_id = setTimeout(() => { throw new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`) }, this.timeout);
+            timeout_id = setTimeout(() => {
+                const err = new Error(`[LightDag] Error: Execution timeout: ${this.timeout}ms`);
+                for (const { reject } of resolves.values())
+                    reject(err);
+            }, this.timeout);
         try {
             for (const op_name of this.operators.keys())
                 this.runNode(op_name, tasks, resolves, context, options, pool);
