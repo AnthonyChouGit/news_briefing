@@ -3,7 +3,7 @@ import { DataSource, Repository } from "typeorm";
 import { Piscina } from "piscina";
 import { GrammyTelegramClient } from "./telegram.js";
 import { BriefNews } from "../types/brief_news.entity.js";
-import { OpenAIClient } from "./ai.js";
+import { OpenAIClient, AISDKClient, AIClient } from "./ai.js";
 import { TelegramErrorHandler } from "./error.js";
 
 export interface InitData {
@@ -15,7 +15,7 @@ export interface InitData {
 
 export class ExecutionContext {
     private readonly data_source: DataSource;
-    private readonly ai_client: OpenAIClient;
+    private readonly ai_client: AIClient;
     private readonly thread_pool: Piscina;
     private readonly send_client: GrammyTelegramClient;
     private readonly repository: Repository<BriefNews>;
@@ -34,7 +34,8 @@ export class ExecutionContext {
         });
         this.repository = this.data_source.getRepository(BriefNews);
 
-        this.ai_client = new OpenAIClient(config);
+        // this.ai_client = new OpenAIClient(config);
+        this.ai_client = config.ai_provider_type === 'openai-compatible' ? new OpenAIClient(config) : new AISDKClient(config);
 
         this.thread_pool = new Piscina();
 

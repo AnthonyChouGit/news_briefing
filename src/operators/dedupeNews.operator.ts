@@ -53,8 +53,8 @@ async function dedupeByEvent(items: Map<string, BriefNewsLike>, covered_items: M
         covered: [...covered_items.values()]
     };
     const payload_json = JSON.stringify(payload);
-    const response: string = await ai_client.ask(payload_json, DEDUPE_INSTRUCTION, res_schema);
-    const deduped_ids = res_schema.parse(JSON.parse(jsonrepair(response))).ids;
+    const response = await ai_client.ask(payload_json, DEDUPE_INSTRUCTION, res_schema);
+    const deduped_ids = response.ids;
     dedupeById(items, deduped_ids);
     return items;
 }

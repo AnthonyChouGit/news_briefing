@@ -9,6 +9,7 @@ import { SendNewsOptionsSchema } from "../operators/sendNews.operator.js";
 import { SummarizeNewsOptionsSchema } from "../operators/summarizeNews.operator.js";
 import { TruncateNewsOptionsSchema } from "../operators/truncateNews.operator.js";
 import { FilterRecencyOptionsSchema } from "../operators/filterRecency.operator.js";
+import { AIClientConfigSchema } from "./ai.js";
 
 export const DbConfigSchema = z.object({
     database_host: z.string().nonempty().default("localhost"),
@@ -19,17 +20,7 @@ export const DbConfigSchema = z.object({
 });
 export type DbConfig = z.infer<typeof DbConfigSchema>;
 
-export const AIClientConfigSchema = z.object({
-    ai_api_key: z.string().nonempty(),
-    ai_base_url: z.string().nonempty(),
-    ai_model: z.string().nonempty(),
-    ai_timeout: z.coerce.number().int().positive().default(300000),
-    ai_max_retries: z.coerce.number().int().positive().default(3),
-    ai_reasoning_effort: z.enum(["low", "medium", "high"]).default("medium")
-});
-export type AIClientConfig = z.infer<typeof AIClientConfigSchema>;
-export const AICientConfigSchema = AIClientConfigSchema;
-export type AICientConfig = AIClientConfig;
+
 
 export const TelegramConfigSchema = z.object({
     telegram_token: z.string().nonempty()
@@ -63,7 +54,7 @@ export const DagConfigSchema = z.object({
 export type DagConfig = z.infer<typeof DagConfigSchema>;
 
 export const ConfigSchema = DbConfigSchema
-    .and(AICientConfigSchema)
+    .and(AIClientConfigSchema)
     .and(FetchOptionsSchema)
     .and(ReadOptionsSchema)
     .and(FormatNewsOptionsSchema)

@@ -70,7 +70,7 @@ async function summarizeEvents(items: Map<string, BriefNewsLike>, ai_client: AIC
     const res_data = await ai_client.ask(payload, getSummarizeInstruction(language), res_schema);
 
     // Actually enforce the Zod validation!
-    const items_bullets = res_schema.parse(JSON.parse(jsonrepair(res_data))).items;
+    const items_bullets = res_data.items;
 
     const itemsList = [...items.values()];
     items_bullets.forEach((item, idx) => {
