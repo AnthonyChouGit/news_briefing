@@ -31,10 +31,9 @@ Deploy and run the full stack (App + PostgreSQL) in minutes using Docker Compose
 ```bash
 git clone <repo-url>
 cd news_briefing
-cp src/.env .env
 ```
 
-Edit `.env` with your credentials and preferences:
+Configure your credentials and preferences in `src/.env` (this file will be automatically bundled into the `build/` directory during compilation):
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
@@ -73,11 +72,28 @@ Edit `.env` with your credentials and preferences:
 
 ### 2. Build & Launch with Docker Compose
 
-```bash
-# 1. Compile TypeScript and bundle release files into build/
-npm run build
+#### Option A: One-time Docker build (No local Node.js required)
+If you don't have Node.js installed locally, compile and package the app using a temporary Node container:
 
-# 2. Start containers in background
+```bash
+docker run --rm -v "$(pwd):/app" -w /app node:slim sh -c "npm install && npm run build"
+```
+
+> [!TIP]
+> On Windows (PowerShell), use `-v "${PWD}:/app"` instead of `-v "$(pwd):/app"`.
+
+#### Option B: Local Node.js build
+If you have Node.js (`>= 20.0.0`) installed locally:
+
+```bash
+npm install
+npm run build
+```
+
+#### Launch Services
+Once the bundle is built into `build/`, start the application and PostgreSQL database:
+
+```bash
 cd build
 docker compose up -d --build
 ```
@@ -106,10 +122,10 @@ docker compose down
 ├── init.sql                  # PostgreSQL database initialization script
 ├── package.json              # Project scripts and dependencies
 ├── tsconfig.json             # TypeScript compiler settings
-├── example.env               # Environment configuration template
 ├── docs/
 │   └── architecture.svg      # Pipeline architecture diagram
 └── src/
+    ├── example.env           # Environment configuration template
     ├── main.ts               # One-shot CLI runner
     ├── cron_main.ts          # Scheduled Cron runner
     ├── news_briefing.dag.ts  # DAG pipeline assembly
