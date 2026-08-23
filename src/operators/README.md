@@ -189,15 +189,15 @@ Generates AI-written bullet-point summaries and rewritten titles for each articl
 | **Output (default)** | `summarized_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 5, err_obj }` |
 | **Requires** | `ai_client: AIClient` |
-| **Options** | `language: Language` (default: `'English'`), `debug: boolean` (default: `false`) |
+| **Options** | `language: Language` (default: `'English'`), `summarize_min_chars: number`, `summarize_max_chars: number`, `summarize_min_bullets: number`, `summarize_max_bullets: number`, `debug: boolean` (default: `false`) |
 
 ### Behavior
 
-1. Creates one promise per category by calling `summarizeEvents(items, ai_client, language)`.
+1. Creates one promise per category by calling `summarizeEvents(items, ai_client, summarize_options)`.
 2. Each `summarizeEvents` call:
    - Evaluates each article's `raw` content against a strict content quality filter (excluding headline repetitions, paywall/cookie notices, video placeholders, and articles with fewer than ~50 words of body content).
-   - Sends the remaining candidate articles to the AI client with detailed journalistic and formatting instructions (including strict quote escaping and pre-return JSON syntax validation).
-   - Expects the AI to return a JSON object with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article matching original `hash_id`s.
+   - Sends the remaining candidate articles to the AI client with detailed journalistic and formatting instructions (including strict quote escaping, character limits per bullet point, bullet count limits, and pre-return JSON syntax validation).
+   - Expects the AI to return a JSON object with rewritten titles and bullet points (between `summarize_min_bullets` and `summarize_max_bullets`, each between `summarize_min_chars` and `summarize_max_chars` characters) per article matching original `hash_id`s.
    - Automatically repairs malformed JSON syntax using `jsonrepair` and validates the parsed structure with a strict Zod schema.
    - Builds a new Map containing only the successfully summarized articles with their updated titles and bullets.
 3. Awaits all category promises with `Promise.all`.

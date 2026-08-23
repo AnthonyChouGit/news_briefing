@@ -16,7 +16,7 @@ The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG
 - **Two-Stage Intelligent Truncation:** Applies random truncation pre-read (`pre_read_truncate_news`) to minimize scraping load and post-summarize (`post_summarize_truncate_news`) to constrain the final digest length per category.
 - **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop, equipped with modern browser header emulation.
 - **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) protected by automated JSON repair to track development stages and eliminate redundant coverage.
-- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`), reinforced with strict content quality filtering, schema formatting, and quote escaping rules. Supports multiple AI providers (`openai`, `anthropic`, `openai-compatible`).
+- **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`), reinforced with strict content quality filtering, configurable bullet counts and character lengths (`summarize_min_bullets`/`summarize_max_bullets`, `summarize_min_chars`/`summarize_max_chars`), schema formatting, and quote escaping rules. Supports multiple AI providers (`openai`, `anthropic`, `openai-compatible`).
 - **Telegram Delivery & Dual Persistence:** Formats messages into clean Telegram `MarkdownV2` syntax with auto-chunking (`FormatNewsOperatorThread` ➔ `SendNewsOperator`) while simultaneously persisting news to PostgreSQL (`SaveNewsOperator`), converging at `MergeStatusOperator`.
 - **Scheduled or One-Off Execution:** Run once directly via CLI or continuously as a background service via integrated Cron scheduling.
 - **Fault-Tolerant Error Handling:** Catches and isolates errors at each DAG node, routing failures to `ErrorOperator` to alert designated Telegram error channels without silent failures.
@@ -54,12 +54,17 @@ Edit `.env` with your credentials and preferences:
 | `categories` | Yes | — | Comma-separated categories: `international, football, realmadrid, f1, ai, mlb, shenzhen, tabletennis` |
 | `channels` | Yes | — | Comma-separated target Telegram chat/channel IDs |
 | `language` | No | `English` | Output language: `English`, `Chinese`, `Spanish`, `French`, `German`, `Italian`, `Portuguese`, `Russian`, `Japanese`, `Korean` |
+| `summarize_min_chars` | Yes | — | Minimum character count per bullet point |
+| `summarize_max_chars` | Yes | — | Maximum character count per bullet point |
+| `summarize_min_bullets` | Yes | — | Minimum number of bullet points per article |
+| `summarize_max_bullets` | Yes | — | Maximum number of bullet points per article |
 | `pre_read_truncate_number` | Yes | — | Max articles per category to read full body contents for |
 | `post_summarize_truncate_number` | Yes | — | Max articles per category to include in the final briefing |
 | `cron_expr` | Required for Cron | — | 5-field cron schedule (e.g. `0 8,12,18,22 * * *`) |
 | `time_zone` | No | `UTC` | Timezone for cron schedule & date headers |
 | `filter_recency_td_hours` | No | `24` | Maximum age of news in hours |
 | `history_time_window_days` | No | `3` | Lookback window (days) for historical deduplication |
+| `fetch_max_decode_items` | No | `10` | Maximum decoded items per category during feed fetch |
 | `send_parse_mode` | No | `MarkdownV2` | Telegram parse mode (`MarkdownV2`, `HTML`, `Markdown`) |
 | `send_chunk_size` | No | `4000` | Max character length per Telegram message |
 | `error_channels` | No | `""` | Comma-separated channel IDs for fatal error alerts |
