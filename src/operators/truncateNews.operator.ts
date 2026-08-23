@@ -5,8 +5,8 @@ import { type BriefNewsLike } from "../types/brief_news.entity.js";
 import { type NewsCategory } from "../types/news_category.enum.js";
 
 export const TruncateNewsOptionsSchema = z.object({
-    truncate_max_items_per_category: z.coerce.number().int().positive().optional().default(5),
-    debug: z.coerce.boolean().default(false)
+    truncate_max_items_per_category: z.coerce.number().int().positive(),
+    debug: z.boolean().default(false)
 });
 export type TruncateNewsOptions = z.infer<typeof TruncateNewsOptionsSchema>;
 
@@ -20,23 +20,25 @@ const TruncateNewsOutputSchema = z.object({
 });
 type TruncateNewsOutput = z.infer<typeof TruncateNewsOutputSchema>;
 
+const randomTruncate = <T>(items: T[], max_num: number): T[] => {
+    if (items.length <= max_num)
+        return items;
+
+    const picked: T[] = [];
+    for (let i = 0; i < max_num && items.length > 0; i++) {
+        const idx = Math.floor(Math.random() * items.length);
+        picked.push(items.splice(idx, 1)[0]!);
+    }
+    return picked;
+}
+
 export default async function truncateNews({ inputs, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
-        const deduped_items: Map<NewsCategory, Map<string, BriefNewsLike>> = (inputs as TruncateNewsInput).truncate_input_items;
+        const input_items: Map<NewsCategory, Map<string, BriefNewsLike>> = (inputs as TruncateNewsInput).truncate_input_items;
         const max_items_per_category: number = (options as TruncateNewsOptions).truncate_max_items_per_category;
         const truncated_items = new Map<NewsCategory, Map<string, BriefNewsLike>>(
-            Array.from(deduped_items.entries(), ([category, items]) => {
-                if (items.size <= max_items_per_category)
-                    return [category, items];
-                const output_items = new Map<string, BriefNewsLike>();
-                let count = 0;
-                for (const [hash_id, item] of items.entries()) {
-                    if (count >= max_items_per_category)
-                        break;
-                    output_items.set(hash_id, item);
-                    count++;
-                }
-                return [category, output_items];
+            Array.from(input_items.entries(), ([category, items]) => {
+                return [category, new Map(randomTruncate(Array.from(items.entries()), max_items_per_category))];
             })
         );
         return { branch: "default", output: { truncated_items } };

@@ -8,7 +8,7 @@ import { LanguageSchema, type Language } from "../types/language.enum.js";
 export const FormatNewsOptionsSchema = z.object({
     language: LanguageSchema.default('English'),
     time_zone: z.string().optional(),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type FormatNewsOptions = z.infer<typeof FormatNewsOptionsSchema>;
 

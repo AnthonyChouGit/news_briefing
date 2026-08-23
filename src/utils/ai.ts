@@ -7,7 +7,7 @@ import { createOpenAICompatible, type OpenAICompatibleProvider, type OpenAICompa
 import { generateText, Output, type Instructions, type ModelMessage } from "ai";
 import { jsonrepair } from "jsonrepair";
 
-export const AIReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium");
+export const AIReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]).optional();
 export type AIReasoningEffort = z.infer<typeof AIReasoningEffortSchema>;
 
 export const AIProviderTypeSchema = z.enum(["openai", "anthropic", "openai-compatible"]);
@@ -115,14 +115,14 @@ export class AISDKClient extends AIClient {
     public async ask<T extends ZodType>(prompt: string, instruction?: string, response_schema?: T): Promise<any> {
         const provider_options = {
             openai: {
-                reasoningEffort: this.reasoning_effort
+                ...(this.reasoning_effort ? { reasoningEffort: this.reasoning_effort } : {})
             } satisfies OpenAILanguageModelResponsesOptions,
             anthropic: {
-                effort: this.reasoning_effort,
+                ...(this.reasoning_effort ? { effort: this.reasoning_effort } : {}),
                 thinking: { type: "adaptive" }
             } satisfies AnthropicLanguageModelOptions,
             openaiCompatible: {
-                reasoningEffort: this.reasoning_effort
+                ...(this.reasoning_effort ? { reasoningEffort: this.reasoning_effort } : {})
             }
         };
 

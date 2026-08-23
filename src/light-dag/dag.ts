@@ -1,6 +1,14 @@
 import { type Piscina } from "piscina";
 import { type Operator, type OperatorArgs, type OperatorOutput, OperatorArgsSchema, OperatorOutputSchema } from "./operator.js";
 
+/**
+ * A lightweight DAG executor that wires Operators together via named promises.
+ *
+ * Each operator declares schema-level input/output names. The DAG maps these to
+ * "global" task names (via the operator's name maps) and connects them with
+ * promises: an operator awaits its input promises, runs exec(), then resolves
+ * its output promises so downstream operators can proceed.
+ */
 export class LightDag {
     private readonly operators: Map<string, Operator>;
     private readonly task_names: Set<string>;
@@ -12,6 +20,8 @@ export class LightDag {
         this.timeout = timeout;
         this.operators = new Map<string, Operator>();
         this.task_names = new Set<string>();
+        // Discover all global task names by scanning each operator's schemas
+        // and applying name maps (schema name → global name).
         for (const op of operators) {
             for (const name of Object.keys(op.input_schema.shape).map(n => op.input_map?.[n] ?? n))
                 this.task_names.add(name);
@@ -37,6 +47,14 @@ export class LightDag {
             console.log("[LightDag]", ...args);
     }
 
+    /**
+     * Execute the DAG.
+     * @param inputs   Initial values to inject, keyed by global task name.
+     * @param outputs  Global task names whose resolved values to return.
+     * @param context  Shared context (e.g. API keys) — operators select from it via requires_schema.
+     * @param options  Runtime options — operators select from it via options_schema.
+     * @param pool     Optional Piscina worker pool for operators with a worker script exec.
+     */
     public async run(
         inputs: Record<string, unknown>,
         outputs: string[],
@@ -44,6 +62,8 @@ export class LightDag {
         options?: Record<string, unknown>,
         pool?: Piscina
     ) {
+        // Debug-only: warn about tasks that are produced but never consumed, or
+        // consumed but never produced (likely a wiring mistake).
         if (this.debug) {
             const consumed = new Set<string>();
             const produced = new Set<string>();
@@ -65,11 +85,13 @@ export class LightDag {
                     console.warn(`[LightDag] Warning: task "${name}" is consumed but never produced by any operator or provided as input`);
             }
         }
+        // Create a promise + resolve/reject pair for every global task name.
+        // Operators await input promises and resolve output promises when done.
         const tasks = new Map<string, Promise<unknown>>();
         const resolves = new Map<string, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>();
         for (const task of this.task_names) {
             const { promise, resolve, reject } = Promise.withResolvers<unknown>();
-            promise.catch(() => { });
+            promise.catch(() => { }); // Prevent unhandled rejection for unused branches
             tasks.set(task, promise);
             resolves.set(task, { resolve, reject });
         }
@@ -82,8 +104,10 @@ export class LightDag {
                     reject(err);
             }, this.timeout);
         try {
+            // Kick off all operators concurrently — they'll block on their input promises.
             for (const op_name of this.operators.keys())
                 this.runNode(op_name, tasks, resolves, context, options, pool);
+            // Resolve the initial input tasks to unblock the first wave of operators.
             for (const [input_name, input_value] of Object.entries(inputs)) {
                 const entry = resolves.get(input_name);
                 if (!entry)
@@ -91,6 +115,7 @@ export class LightDag {
 
                 entry.resolve(input_value);
             }
+            // Wait for the requested output tasks to resolve and collect results.
             const output_promises = outputs.map((output_name) => {
                 const task = tasks.get(output_name);
                 if (!task)
@@ -110,6 +135,16 @@ export class LightDag {
         }
     }
 
+    /**
+     * Run a single operator node within the DAG.
+     *
+     * Lifecycle:
+     * 1. Collect all global output names (for error rejection if exec fails).
+     * 2. Await input promises from the DAG task map.
+     * 3. Remap context/options from global keys to schema keys.
+     * 4. Call exec (in-process or via worker pool).
+     * 5. Validate the output branch and resolve output promises.
+     */
     private async runNode(
         name: string,
         tasks: Map<string, Promise<unknown>>,
@@ -124,9 +159,12 @@ export class LightDag {
             if (!op) {
                 throw new Error(`Node ${name} not found`);
             }
+            // Pre-collect all output names so we can reject them on error.
             for (const branchSchema of Object.values(op.output_schemas))
                 for (const key of Object.keys(branchSchema.shape))
                     all_global_output_names.push(op.output_map?.[key] ?? key);
+
+            // Map schema input names to global DAG task names and await them.
             const schema_input_names = Object.keys(op.input_schema.shape);
             const global_input_names = schema_input_names.map(n => op.input_map?.[n] ?? n);
 
@@ -144,8 +182,24 @@ export class LightDag {
             }
             this.log(`[${name}] START — inputs resolved: [${global_input_names.join(", ")}]`);
             const parsed_inputs = op.input_schema.parse(inputs);
-            const parsed_requires = op.requires_schema.parse(context);
-            const parsed_options = op.options_schema.parse(options);
+
+            // Remap context and options from global keys to schema keys,
+            // then validate with the operator's schemas.
+            const op_requires: Record<string, unknown> = {};
+            const schema_requires_names = Object.keys(op.requires_schema.shape);
+            const global_requires_names = schema_requires_names.map(n => op.requires_map?.[n] ?? n);
+            for (let i = 0; i < schema_requires_names.length; i++) {
+                op_requires[schema_requires_names[i]!] = context?.[global_requires_names[i]!];
+            }
+            const op_options: Record<string, unknown> = {};
+            const schema_options_names = Object.keys(op.options_schema.shape);
+            const global_options_names = schema_options_names.map(n => op.options_map?.[n] ?? n);
+            for (let i = 0; i < schema_options_names.length; i++) {
+                op_options[schema_options_names[i]!] = options?.[global_options_names[i]!];
+            }
+
+            const parsed_requires = op.requires_schema.parse(op_requires);
+            const parsed_options = op.options_schema.parse(op_options);
             let op_output: OperatorOutput;
             const op_input_arg: OperatorArgs = { inputs: parsed_inputs, requires: parsed_requires, options: parsed_options };
             if (typeof op.exec === "string") {
@@ -158,6 +212,9 @@ export class LightDag {
             op_output = OperatorOutputSchema.parse(op_output);
             if (!Object.hasOwn(op.output_schemas, op_output.branch))
                 throw new Error(`Branch "${op_output.branch}" not found for node "${name}"`);
+
+            // Validate outputs against the branch schema, then resolve the
+            // corresponding global task promises so downstream operators unblock.
             const parsed_output = op.output_schemas[op_output.branch]!.parse(op_output.output);
             const schema_output_names = Object.keys(op.output_schemas[op_output.branch]!.shape);
             const global_output_names = schema_output_names.map(n => op.output_map?.[n] ?? n);
@@ -171,6 +228,8 @@ export class LightDag {
             }
             this.log(`[${name}] END — outputs produced: [${global_output_names.join(", ")}] (branch: ${op_output.branch})`);
         } catch (err) {
+            // On failure, reject all of this operator's output promises so
+            // downstream operators don't hang indefinitely.
             this.log(`[${name}] END — error, rejecting outputs: [${all_global_output_names.join(", ")}]`, err);
             for (const global_name of all_global_output_names) {
                 resolves.get(global_name)?.reject(err);

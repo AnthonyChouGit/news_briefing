@@ -7,7 +7,7 @@ export const ReadOptionsSchema = z.object({
     read_user_agent: z.string().nonempty().optional(),
     read_max_body_chars: z.coerce.number().int().nonnegative().optional(),
     read_concurrency: z.coerce.number().int().positive().optional(),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
@@ -55,7 +55,15 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
                 continue;
             }
             const items: Map<string, BriefNewsLike> = result.value as Map<string, BriefNewsLike>;
-            read_input_items.set(categories[i]!, items);
+            // Delete items without raw content.
+            items.forEach((item, hash_id) => {
+                if (!item.raw || item.raw.length === 0)
+                    items.delete(hash_id);
+            });
+            if (items.size === 0)
+                read_input_items.delete(categories[i]!);
+            else
+                read_input_items.set(categories[i]!, items);
         }
 
         if (read_input_items.size === 0) {

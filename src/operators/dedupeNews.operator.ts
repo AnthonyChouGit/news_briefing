@@ -4,7 +4,6 @@ import { type NewsCategory } from "../types/news_category.enum.js";
 import { AIClient } from "../utils/ai.js";
 import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/operator.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
-import { jsonrepair } from "jsonrepair";
 
 const DEDUPE_INSTRUCTION = `You are a news deduplication engine. You will receive a JSON object with two arrays:
 
@@ -32,7 +31,12 @@ If an event appears in "covered" and also has multiple articles in "fetched":
 - If none of the fetched articles report a genuinely new development compared to "covered", mark ALL fetched articles for that event as redundant.
 - If one or more fetched articles report a genuinely new development compared to "covered", keep ONLY the single latest item with the latest development stage among them, and mark all other fetched articles for that event as redundant.
 
-Respond with a JSON object containing an "ids" array with ONLY the hash_id values of the redundant articles from the "fetched" list (e.g. {"ids": ["hash1", "hash2"]}). If no articles are redundant, respond with {"ids": []}.`;
+Respond with a JSON object containing an "ids" array with ONLY the hash_id values of the redundant articles from the "fetched" list (e.g. {"ids": ["hash1", "hash2"]}). If no articles are redundant, respond with {"ids": []}.
+
+CRITICAL OUTPUT FORMAT RULES:
+- Output ONLY the raw JSON object. Do NOT wrap it in markdown code blocks, backticks, or any other formatting.
+- Do NOT use any markdown syntax such as bold (**), italic (*), headings (#), or lists (-) anywhere in your response.
+- Your entire response must be valid, parseable JSON and nothing else.`;
 
 function dedupeById(items: Map<string, BriefNewsLike>, covered_ids: string[]): Map<string, BriefNewsLike> {
     covered_ids.forEach((hash_id) => {
@@ -114,7 +118,7 @@ export default async function dedupeNews({ inputs, requires, options }: Operator
 }
 
 export const DedupeNewsOptionsSchema = z.object({
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type DedupeNewsOptions = z.infer<typeof DedupeNewsOptionsSchema>;
 

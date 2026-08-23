@@ -7,16 +7,23 @@ import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { LanguageSchema } from "../types/language.enum.js";
 export const SummarizeNewsOptionsSchema = z.object({
     language: LanguageSchema.default('English'),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type SummarizeNewsOptions = z.infer<typeof SummarizeNewsOptionsSchema>;
 import { logExpectedError } from "./common/errors.js";
 import { type Language } from "../types/language.enum.js";
-import { jsonrepair } from "jsonrepair";
 
 const getSummarizeInstruction = (language: Language) => `You are a world-class senior news editor and summarization engine. You will receive a JSON array of news articles. Each article has the following fields: hash_id, url, title, source_date, source_name, category, and raw (the full article text).
 
-For EVERY article in the input, produce a high-quality, comprehensive, and journalistic summary. You must return a JSON object with an "items" array containing exactly one entry per input article, in the same order. Each entry must have:
+CONTENT QUALITY FILTER (APPLY FIRST):
+Before summarizing, evaluate each article's "raw" field. EXCLUDE any article where the raw text does NOT contain substantive, reportable content. Common exclusion cases:
+- The raw text is mostly or entirely a repetition of the headline/title with no additional detail.
+- The raw text consists only of website boilerplate, navigation elements, cookie notices, login prompts, or error/retry messages.
+- The raw text is a video/media page placeholder with no transcript or written reporting (e.g. "No results found", "Try again later").
+- The raw text is too short (fewer than ~50 words of actual article content) to produce a meaningful summary.
+Do NOT include excluded articles in your response at all — simply omit them from the "items" array.
+
+For every REMAINING article that passes the content quality filter, produce a high-quality, comprehensive, and journalistic summary. Return a JSON object with an "items" array containing one entry per included article, preserving their original relative order. Each entry must have:
 
 - "hash_id": The exact hash_id of the article (do not modify or generate new IDs).
 - "title": A comprehensive, informative, and engaging headline in ${language} (typically 20–60 characters in Chinese/Japanese or 10–25 words in Western languages) that accurately captures the core subject, action, context, and key figures/outcomes (e.g., 《白宫报告：逾40国帮助中国规避美国关税，涉数十亿美元》, 《NTSB：瑞安航空客机发动机叶片断裂，碎片击碎舷窗致乘客半身被吸出》, 《芒西第131轰登顶道奇体育场队史本垒打王，道奇仍负酿酒人》). Avoid short, vague, or overly generic titles.
@@ -32,11 +39,11 @@ Summary and bullet point guidelines:
 CRITICAL JSON SYNTAX & QUOTATION RULES:
 1. STRICT JSON VALIDITY: Your response must be 100% valid, parseable JSON conforming strictly to {"items": [...]}.
 2. QUOTATION ESCAPING (CRITICAL): Inside string values (titles and bullets), NEVER use raw unescaped ASCII double quotes (").
-   - When citing names, quotes, titles, or terms in Chinese/Japanese/CJK text, use typographic marks such as 「...」, 『...』, 《...》, or “...”.
-   - In Western languages, use single quotes ('...') or properly escaped double quotes (\\").
+   - When citing names, quotes, titles, or terms in Chinese/Japanese/CJK text, use typographic marks such as 「...」, 『...』, 《...》, or "...".
+   - In Western languages, use single quotes ('...') or properly escaped double quotes (\\\").
 3. NO TRAILING COMMAS: Never put trailing commas after the last element in arrays or objects.
 4. FINAL SYNTAX CHECK: Before finalizing your output, mentally validate the entire JSON string to ensure all quotes are properly closed/escaped, all braces and brackets match, and there are no syntax errors.
-5. PURE JSON ONLY: Output ONLY the raw JSON object without markdown code blocks, backticks, or any preamble/postscript text.`;
+5. PURE JSON ONLY: Output ONLY the raw JSON object without markdown code blocks, backticks, or any preamble/postscript text. Do NOT use any markdown syntax such as bold (**), italic (*), headings (#), or lists (-) anywhere in your response. Your entire response must be valid, parseable JSON and nothing else.`;
 
 const SummarizeNewsInputSchema = z.object({
     summarize_input_items: z.instanceof(Map<NewsCategory, Map<string, BriefNewsLike>>)
@@ -69,23 +76,21 @@ async function summarizeEvents(items: Map<string, BriefNewsLike>, ai_client: AIC
 
     const res_data = await ai_client.ask(payload, getSummarizeInstruction(language), res_schema);
 
-    // Actually enforce the Zod validation!
     const items_bullets = res_data.items;
 
-    const itemsList = [...items.values()];
-    items_bullets.forEach((item, idx) => {
-        let targetItem = items.get(item.hash_id);
-        if (!targetItem && itemsList[idx] && items_bullets.length === itemsList.length) {
-            targetItem = itemsList[idx];
-        }
+    const output_items = new Map<string, BriefNewsLike>();
+
+    items_bullets.forEach((item) => {
+        if (!item.hash_id || !item.title || !item.bullets)
+            return;
+        const targetItem = items.get(item.hash_id);
         if (targetItem) {
-            targetItem.bullets = item.bullets;
             targetItem.title = item.title;
-        } else {
-            logExpectedError(new Error(`[Summarize] AI returned an unknown hash_id: ${item.hash_id}`));
+            targetItem.bullets = item.bullets;
+            output_items.set(item.hash_id, targetItem);
         }
     });
-    return items;
+    return output_items;
 }
 
 export default async function summarizeNews({ inputs, requires, options }: OperatorArgs): Promise<OperatorOutput> {
@@ -93,11 +98,15 @@ export default async function summarizeNews({ inputs, requires, options }: Opera
         const { summarize_input_items } = inputs as SummarizeNewsInput;
         const { ai_client } = requires as SummarizeNewsRequires;
         const language = (options as SummarizeNewsOptions).language;
-        const summarize_promises = Array.from(summarize_input_items.entries()).map(async ([category, items]) => {
-            await summarizeEvents(items, ai_client, language);
-        });
-        await Promise.all(summarize_promises);
-        const op_output: SummarizeNewsOutput = { summarized_items: summarize_input_items };
+        const summarize_promises = Array.from(summarize_input_items.entries()).map(
+            async ([category, items]): Promise<[NewsCategory, Map<string, BriefNewsLike>]> => {
+                const summarized = await summarizeEvents(items, ai_client, language);
+                return [category, summarized];
+            }
+        );
+        const results = await Promise.all(summarize_promises);
+        const summarized_items = new Map(results);
+        const op_output: SummarizeNewsOutput = { summarized_items };
         return { branch: "default", output: op_output };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 5, err_obj: err };

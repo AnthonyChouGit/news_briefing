@@ -6,7 +6,7 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { ErrorInfoSchema, type ErrorInfo } from "./common/errors.js";
 export const HistoryNewsOptionsSchema = z.object({
     history_time_window_days: z.coerce.number().positive().default(3),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type HistoryNewsOptions = z.infer<typeof HistoryNewsOptionsSchema>;
 

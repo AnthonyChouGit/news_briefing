@@ -104,12 +104,14 @@ Removes duplicate news articles by comparing newly fetched items against previou
 ## 3. TruncateNewsOperator
 
 **File:** [`truncateNews.operator.ts`](./truncateNews.operator.ts)  
-**Name:** `truncate_news`  
+**Name:** `truncate_news` (or renamed via `.setName()`)  
 **Error Code:** `3`
 
 ### Purpose
 
-Limits the number of articles per category to a configurable maximum, keeping only the first N items per insertion order.
+Limits the number of articles per category to a configurable maximum using random selection. In the pipeline DAG, it is utilized in two distinct phases:
+1. **`pre_read_truncate_news`:** Limits items after deduplication before full article reading (`readNews`) to minimize scraping load and bandwidth.
+2. **`post_summarize_truncate_news`:** Further limits items after AI summarization to curate the final digest length per category before formatting and delivery.
 
 ### Schemas
 
@@ -118,13 +120,13 @@ Limits the number of articles per category to a configurable maximum, keeping on
 | **Input** | `truncate_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (default)** | `truncated_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 3, err_obj }` |
-| **Options** | `truncate_max_items_per_category: number` (positive integer, default: `5`), `debug: boolean` (default: `false`) |
+| **Options** | `truncate_max_items_per_category: number` (positive integer), `debug: boolean` (default: `false`) |
 
 ### Behavior
 
 1. Iterates over every category in `truncate_input_items`.
 2. If a category has ≤ `truncate_max_items_per_category` items, it is passed through unchanged.
-3. Otherwise, creates a new Map containing only the first `truncate_max_items_per_category` items (by Map insertion order).
+3. Otherwise, randomly picks `truncate_max_items_per_category` items via `randomTruncate`.
 4. Returns a **new** Map (the input is not mutated).
 
 ### Concurrency Model
@@ -177,7 +179,7 @@ Fetches the full article content (body text) for each previously-fetched brief n
 
 ### Purpose
 
-Generates AI-written bullet-point summaries and rewritten titles for each article, in a specified language.
+Generates AI-written bullet-point summaries and rewritten titles for each article in a specified language. Applies strict content quality filtering to omit low-quality/boilerplate articles.
 
 ### Schemas
 
@@ -193,18 +195,17 @@ Generates AI-written bullet-point summaries and rewritten titles for each articl
 
 1. Creates one promise per category by calling `summarizeEvents(items, ai_client, language)`.
 2. Each `summarizeEvents` call:
-   - Sends all articles in the category as a JSON payload to the AI client with detailed journalistic and formatting instructions (including strict quote escaping and pre-return JSON syntax validation).
-   - Expects the AI to return a JSON object with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article.
-   - Automatically repairs malformed JSON syntax (unescaped quotes, markdown blocks, etc.) using `jsonrepair` and validates the parsed structure with a strict Zod schema.
-   - Mutates each `BriefNewsLike` item in place, setting `bullets` and `title`.
+   - Evaluates each article's `raw` content against a strict content quality filter (excluding headline repetitions, paywall/cookie notices, video placeholders, and articles with fewer than ~50 words of body content).
+   - Sends the remaining candidate articles to the AI client with detailed journalistic and formatting instructions (including strict quote escaping and pre-return JSON syntax validation).
+   - Expects the AI to return a JSON object with rewritten titles and 2–4 bullet points (minimum 10 characters each) per article matching original `hash_id`s.
+   - Automatically repairs malformed JSON syntax using `jsonrepair` and validates the parsed structure with a strict Zod schema.
+   - Builds a new Map containing only the successfully summarized articles with their updated titles and bullets.
 3. Awaits all category promises with `Promise.all`.
-4. Returns the original input map (mutated in place).
+4. Returns a new `Map<NewsCategory, Map<string, BriefNewsLike>>` containing only articles that passed the quality filter and summarization.
 
 ### Concurrency Model
 
 **Concurrent promises (single-threaded).** One AI API call per category, all fired concurrently via `Promise.all`. The promises overlap on network I/O but share the main thread. Uses `Promise.all` — **a single category failure rejects the entire batch**.
-
-> **Mutation note:** Items are mutated in place. The input and output reference the same Map.
 
 ---
 

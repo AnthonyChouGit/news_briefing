@@ -55,23 +55,7 @@ export class ExecutionContext {
             send_client: this.send_client,
             error_handler: this.error_handler
         };
-        const options = {
-            fetch_timeout: this.config.fetch_timeout,
-            fetch_max_decode_items: this.config.fetch_max_decode_items,
-            fetch_user_agent: this.config.fetch_user_agent,
-            read_timeout: this.config.read_timeout,
-            read_user_agent: this.config.read_user_agent,
-            read_max_body_chars: this.config.read_max_body_chars,
-            read_concurrency: this.config.read_concurrency,
-            history_time_window_days: this.config.history_time_window_days,
-            truncate_max_items_per_category: this.config.truncate_max_items_per_category,
-            language: this.config.language,
-            time_zone: this.config.time_zone,
-            send_parse_mode: this.config.send_parse_mode,
-            send_chunk_size: this.config.send_chunk_size,
-            debug: this.config.debug,
-            filter_recency_td_hours: this.config.filter_recency_td_hours,
-        };
+        const options = this.config;
         const inputs = {
             categories: this.config.categories,
             channels: this.config.channels

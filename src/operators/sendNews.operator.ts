@@ -3,11 +3,10 @@ import { type OperatorArgs, type OperatorOutput, Operator } from "../light-dag/o
 import { TelegramClient, TelegramParseModeSchema } from "../utils/telegram.js";
 import { type ErrorInfo, ErrorInfoSchema } from "./common/errors.js";
 import { logExpectedError } from "./common/errors.js";
-
 export const SendNewsOptionsSchema = z.object({
     send_parse_mode: TelegramParseModeSchema.default("MarkdownV2"),
     send_chunk_size: z.coerce.number().positive().default(4000),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type SendNewsOptions = z.infer<typeof SendNewsOptionsSchema>;
 

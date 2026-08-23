@@ -8,7 +8,7 @@ export const FetchOptionsSchema = z.object({
     fetch_timeout: z.coerce.number().int().nonnegative().optional(),
     fetch_max_decode_items: z.coerce.number().int().nonnegative().optional(),
     fetch_user_agent: z.string().nonempty().optional(),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type FetchOptions = z.infer<typeof FetchOptionsSchema>;
 

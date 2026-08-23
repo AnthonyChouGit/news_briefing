@@ -48,7 +48,7 @@ export default async function saveNews({ inputs, requires, options }: OperatorAr
 }
 
 export const SaveNewsOptionsSchema = z.object({
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type SaveNewsOptions = z.infer<typeof SaveNewsOptionsSchema>;
 

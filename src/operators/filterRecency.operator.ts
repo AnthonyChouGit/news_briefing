@@ -16,7 +16,7 @@ type FilterRecencyOutput = z.infer<typeof FilterRecencyOutputSchema>;
 
 export const FilterRecencyOptionsSchema = z.object({
     filter_recency_td_hours: z.coerce.number().positive().default(24),
-    debug: z.coerce.boolean().default(false)
+    debug: z.boolean().default(false)
 });
 export type FilterRecencyOptions = z.infer<typeof FilterRecencyOptionsSchema>;
 
