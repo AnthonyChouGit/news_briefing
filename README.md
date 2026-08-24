@@ -2,7 +2,7 @@
 
 An automated, AI-powered news briefing and summarization pipeline built with TypeScript and Node.js. 
 
-It periodically gathers news across multiple categories, filters fresh stories, deduplicates against past coverage using AI, extracts article contents in parallel worker threads, synthesizes high-quality summaries with LLMs, and broadcasts formatted digests directly to Telegram channels.
+It periodically gathers news across multiple categories, deduplicates against past coverage using AI, extracts article contents in parallel worker threads, filters fresh stories, synthesizes high-quality summaries with LLMs, and broadcasts formatted digests directly to Telegram channels.
 
 ## Architecture & Features
 
@@ -12,7 +12,7 @@ The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG
   <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
 </p>
 
-- **Multi-Category Ingestion & Smart Filtering:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`. Automatically filters out paywalled/anti-bot domains during feed parsing.
+- **Multi-Category Ingestion & Smart Filtering:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`. Automatically filters out paywalled/anti-bot domains during feed parsing and enforces post-read recency filtering (`FilterRecencyOperator`).
 - **Two-Stage Intelligent Truncation:** Applies random truncation pre-read (`pre_read_truncate_news`) to minimize scraping load and post-summarize (`post_summarize_truncate_news`) to constrain the final digest length per category.
 - **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop, equipped with modern browser header emulation.
 - **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) protected by automated JSON repair to track development stages and eliminate redundant coverage.

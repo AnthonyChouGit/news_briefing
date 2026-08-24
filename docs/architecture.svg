@@ -38,58 +38,59 @@
   <!-- categories -> HistoryNews -->
   <path d="M 460 103 L 530 103 L 530 130" class="conn" marker-end="url(#arrow)" />
 
-  <!-- FetchNews -> FilterRecency (post-fetch) -->
-  <path d="M 250 178 L 250 205" class="conn" marker-end="url(#arrow)" />
-
-  <!-- FilterRecency (post-fetch) -> DedupeNews -->
-  <path d="M 250 253 L 250 266 L 350 266 L 350 280" class="conn" marker-end="url(#arrow)" />
+  <!-- FetchNews -> DedupeNews -->
+  <path d="M 250 178 L 250 190 L 350 190 L 350 205" class="conn" marker-end="url(#arrow)" />
 
   <!-- HistoryNews -> DedupeNews -->
-  <path d="M 530 178 L 530 266 L 430 266 L 430 280" class="conn" marker-end="url(#arrow)" />
+  <path d="M 530 178 L 530 190 L 430 190 L 430 205" class="conn" marker-end="url(#arrow)" />
 
   <!-- DedupeNews -> TruncateNews (pre-read) -->
-  <path d="M 390 328 L 390 350" class="conn" marker-end="url(#arrow)" />
+  <path d="M 390 253 L 390 275" class="conn" marker-end="url(#arrow)" />
 
   <!-- TruncateNews (pre-read) -> ReadNews -->
-  <path d="M 390 398 L 390 420" class="conn" marker-end="url(#arrow)" />
+  <path d="M 390 323 L 390 345" class="conn" marker-end="url(#arrow)" />
 
-  <!-- ReadNews -> SummarizeNews -->
-  <path d="M 390 468 L 390 490" class="conn" marker-end="url(#arrow)" />
+  <!-- ReadNews -> FilterRecency (post-read) -->
+  <path d="M 390 393 L 390 415" class="conn" marker-end="url(#arrow)" />
+
+  <!-- FilterRecency (post-read) -> SummarizeNews -->
+  <path d="M 390 463 L 390 485" class="conn" marker-end="url(#arrow)" />
 
   <!-- SummarizeNews -> TruncateNews (post-summarize) -->
-  <path d="M 390 538 L 390 560" class="conn" marker-end="url(#arrow)" />
+  <path d="M 390 533 L 390 555" class="conn" marker-end="url(#arrow)" />
 
   <!-- TruncateNews (post-summarize) -> FormatNews -->
-  <path d="M 350 608 L 350 624 L 250 624 L 250 640" class="conn" marker-end="url(#arrow)" />
+  <path d="M 350 603 L 350 616 L 250 616 L 250 630" class="conn" marker-end="url(#arrow)" />
 
   <!-- TruncateNews (post-summarize) -> SaveNews -->
-  <path d="M 430 608 L 430 624 L 530 624 L 530 640" class="conn" marker-end="url(#arrow)" />
+  <path d="M 430 603 L 430 616 L 530 616 L 530 630" class="conn" marker-end="url(#arrow)" />
 
   <!-- FormatNews -> SendNews -->
-  <path d="M 250 688 L 250 715" class="conn" marker-end="url(#arrow)" />
+  <path d="M 250 678 L 250 705" class="conn" marker-end="url(#arrow)" />
 
   <!-- channels -> SendNews -->
-  <path d="M 120 736 L 140 736" class="conn" marker-end="url(#arrow)" />
+  <path d="M 120 726 L 140 726" class="conn" marker-end="url(#arrow)" />
 
   <!-- SendNews -> MergeStatus -->
-  <path d="M 250 763 L 250 782 L 350 782 L 350 800" class="conn" marker-end="url(#arrow)" />
+  <path d="M 250 753 L 250 768 L 350 768 L 350 780" class="conn" marker-end="url(#arrow)" />
 
   <!-- SaveNews -> MergeStatus -->
-  <path d="M 530 688 L 530 782 L 430 782 L 430 800" class="conn" marker-end="url(#arrow)" />
+  <path d="M 530 678 L 530 768 L 430 768 L 430 780" class="conn" marker-end="url(#arrow)" />
 
   <!-- MergeStatus -> Success -->
-  <path d="M 390 848 L 390 870" class="conn" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow-success)" />
+  <path d="M 390 828 L 390 855" class="conn" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow-success)" />
 
   <!-- Error Connections to ErrorOperator -->
   <path d="M 360 154 C 620 154, 620 485, 680 485" class="conn-err" marker-end="url(#arrow-error)" />
   <path d="M 640 154 C 660 154, 660 485, 680 485" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 500 304 C 600 304, 620 495, 680 495" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 500 374 C 590 374, 615 505, 680 505" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 500 444 C 580 444, 610 515, 680 515" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 500 514 C 580 514, 610 525, 680 525" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 500 584 C 590 584, 615 535, 680 535" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 640 664 C 660 664, 660 545, 680 545" class="conn-err" marker-end="url(#arrow-error)" />
-  <path d="M 360 739 C 620 739, 620 555, 680 555" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 229 C 600 229, 620 495, 680 495" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 299 C 590 299, 615 505, 680 505" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 369 C 580 369, 610 515, 680 515" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 439 C 580 439, 610 525, 680 525" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 509 C 580 509, 610 535, 680 535" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 500 579 C 590 579, 615 545, 680 545" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 640 654 C 660 654, 660 555, 680 555" class="conn-err" marker-end="url(#arrow-error)" />
+  <path d="M 360 729 C 620 729, 620 555, 680 555" class="conn-err" marker-end="url(#arrow-error)" />
 
   <!-- ErrorOperator -> Failure Output -->
   <path d="M 765 543 L 765 570" stroke="#f85149" stroke-width="2" fill="none" marker-end="url(#arrow-error)" />
@@ -115,84 +116,84 @@
     <text x="530" y="168" text-anchor="middle" class="node-sub">Query PostgreSQL</text>
   </g>
 
-  <!-- Level 2: FilterRecency (post-fetch) -->
+  <!-- Level 2: DedupeNews -->
   <g filter="url(#shadow)">
-    <rect x="140" y="205" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="250" y="227" text-anchor="middle" class="node-title">⏱️ FilterRecencyOperator</text>
-    <text x="250" y="243" text-anchor="middle" class="node-sub">post_fetch_filter_td</text>
+    <rect x="280" y="205" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="227" text-anchor="middle" class="node-title">🧠 DedupeNewsOperator</text>
+    <text x="390" y="243" text-anchor="middle" class="node-sub">Exact ID + AI Event Match</text>
   </g>
 
-  <!-- Level 3: DedupeNews -->
+  <!-- Level 3: TruncateNews (pre-read) -->
   <g filter="url(#shadow)">
-    <rect x="280" y="280" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="302" text-anchor="middle" class="node-title">🧠 DedupeNewsOperator</text>
-    <text x="390" y="318" text-anchor="middle" class="node-sub">Exact ID + AI Event Match</text>
+    <rect x="280" y="275" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="297" text-anchor="middle" class="node-title">✂️ TruncateNewsOperator</text>
+    <text x="390" y="313" text-anchor="middle" class="node-sub">pre_read_truncate_news</text>
   </g>
 
-  <!-- Level 4: TruncateNews (pre-read) -->
+  <!-- Level 4: ReadNews -->
   <g filter="url(#shadow)">
-    <rect x="280" y="350" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="372" text-anchor="middle" class="node-title">✂️ TruncateNewsOperator</text>
-    <text x="390" y="388" text-anchor="middle" class="node-sub">pre_read_truncate_news</text>
+    <rect x="280" y="345" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="367" text-anchor="middle" class="node-title">📖 ReadNewsOperator</text>
+    <text x="390" y="383" text-anchor="middle" class="node-sub">Piscina Worker Threads</text>
   </g>
 
-  <!-- Level 5: ReadNews -->
+  <!-- Level 5: FilterRecency (post-read) -->
   <g filter="url(#shadow)">
-    <rect x="280" y="420" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="442" text-anchor="middle" class="node-title">📖 ReadNewsOperator</text>
-    <text x="390" y="458" text-anchor="middle" class="node-sub">Piscina Worker Threads</text>
+    <rect x="280" y="415" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="437" text-anchor="middle" class="node-title">⏱️ FilterRecencyOperator</text>
+    <text x="390" y="453" text-anchor="middle" class="node-sub">post_read_filtered_recency</text>
   </g>
 
   <!-- Level 6: SummarizeNews -->
   <g filter="url(#shadow)">
-    <rect x="280" y="490" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="512" text-anchor="middle" class="node-title">✨ SummarizeNewsOperator</text>
-    <text x="390" y="528" text-anchor="middle" class="node-sub">LLM Headlines &amp; Bullets</text>
+    <rect x="280" y="485" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="507" text-anchor="middle" class="node-title">✨ SummarizeNewsOperator</text>
+    <text x="390" y="523" text-anchor="middle" class="node-sub">LLM Headlines &amp; Bullets</text>
   </g>
 
   <!-- Level 7: TruncateNews (post-summarize) -->
   <g filter="url(#shadow)">
-    <rect x="280" y="560" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="582" text-anchor="middle" class="node-title">✂️ TruncateNewsOperator</text>
-    <text x="390" y="598" text-anchor="middle" class="node-sub">post_summarize_truncate_news</text>
+    <rect x="280" y="555" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="577" text-anchor="middle" class="node-title">✂️ TruncateNewsOperator</text>
+    <text x="390" y="593" text-anchor="middle" class="node-sub">post_summarize_truncate_news</text>
   </g>
 
   <!-- Level 8: FormatNews & SaveNews -->
   <g filter="url(#shadow)">
-    <rect x="140" y="640" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="250" y="662" text-anchor="middle" class="node-title">📝 FormatNewsOperator</text>
-    <text x="250" y="678" text-anchor="middle" class="node-sub">Telegram MarkdownV2</text>
+    <rect x="140" y="630" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="250" y="652" text-anchor="middle" class="node-title">📝 FormatNewsOperator</text>
+    <text x="250" y="668" text-anchor="middle" class="node-sub">Telegram MarkdownV2</text>
   </g>
 
   <g filter="url(#shadow)">
-    <rect x="420" y="640" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="530" y="662" text-anchor="middle" class="node-title">💾 SaveNewsOperator</text>
-    <text x="530" y="678" text-anchor="middle" class="node-sub">Persist to PostgreSQL</text>
+    <rect x="420" y="630" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="530" y="652" text-anchor="middle" class="node-title">💾 SaveNewsOperator</text>
+    <text x="530" y="668" text-anchor="middle" class="node-sub">Persist to PostgreSQL</text>
   </g>
 
   <!-- Level 9: SendNews & Channels Input -->
   <g filter="url(#shadow)">
-    <rect x="20" y="715" width="100" height="42" rx="21" fill="#161b22" stroke="#388bfd" stroke-width="2" />
-    <text x="70" y="741" text-anchor="middle" class="badge-text">📢 channels</text>
+    <rect x="20" y="705" width="100" height="42" rx="21" fill="#161b22" stroke="#388bfd" stroke-width="2" />
+    <text x="70" y="731" text-anchor="middle" class="badge-text">📢 channels</text>
   </g>
 
   <g filter="url(#shadow)">
-    <rect x="140" y="715" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="250" y="737" text-anchor="middle" class="node-title">📢 SendNewsOperator</text>
-    <text x="250" y="753" text-anchor="middle" class="node-sub">Broadcast to Telegram</text>
+    <rect x="140" y="705" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="250" y="727" text-anchor="middle" class="node-title">📢 SendNewsOperator</text>
+    <text x="250" y="743" text-anchor="middle" class="node-sub">Broadcast to Telegram</text>
   </g>
 
   <!-- Level 10: MergeStatus -->
   <g filter="url(#shadow)">
-    <rect x="280" y="800" width="220" height="48" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5" />
-    <text x="390" y="822" text-anchor="middle" class="node-title" fill="#f0e6c8">🔄 MergeStatusOperator</text>
-    <text x="390" y="838" text-anchor="middle" class="node-sub">Wait for [sent, saved]</text>
+    <rect x="280" y="780" width="220" height="48" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5" />
+    <text x="390" y="802" text-anchor="middle" class="node-title" fill="#f0e6c8">🔄 MergeStatusOperator</text>
+    <text x="390" y="818" text-anchor="middle" class="node-sub">Wait for [sent, saved]</text>
   </g>
 
   <!-- Level 11: Terminal Success -->
   <g filter="url(#shadow)">
-    <rect x="290" y="870" width="200" height="44" rx="22" fill="#1b4728" stroke="#3fb950" stroke-width="2" />
-    <text x="390" y="897" text-anchor="middle" font-size="14" font-weight="700" fill="#3fb950">✅ success = true</text>
+    <rect x="290" y="855" width="200" height="44" rx="22" fill="#1b4728" stroke="#3fb950" stroke-width="2" />
+    <text x="390" y="882" text-anchor="middle" font-size="14" font-weight="700" fill="#3fb950">✅ success = true</text>
   </g>
 
   <!-- Error Handling Node -->

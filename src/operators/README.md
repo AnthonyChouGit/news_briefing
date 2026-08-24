@@ -85,6 +85,7 @@ Removes duplicate news articles by comparing newly fetched items against previou
 | **Output (default)** | `deduped_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
 | **Output (error)** | `ErrorInfo { err_code: 2, err_obj }` |
 | **Requires** | `ai_client: AIClient` |
+| **Options** | `debug: boolean` (default: `false`) |
 
 ### Behavior
 
@@ -390,12 +391,12 @@ Delivers the formatted news text to one or more Telegram channels.
 ## 11. FilterRecencyOperator
 
 **File:** [`filterRecency.operator.ts`](./filterRecency.operator.ts)  
-**Name:** Configurable via constructor (default: `"filter_recency"`)  
+**Name:** `filter_recency` (or renamed via `.setName()`)  
 **Error Code:** `11`
 
 ### Purpose
 
-Filters news articles based on their publication date (`source_date`), removing any articles that are older than a configurable time threshold (in hours). Typically used post-fetch and post-read to ensure only fresh news items proceed through the pipeline.
+Filters news articles based on their publication date (`source_date`), removing any articles that are older than a configurable time threshold (in hours). Used post-read (after article publication dates are fully resolved from article metadata) to ensure only fresh news items proceed through the pipeline to AI summarization and delivery.
 
 ### Schemas
 
@@ -416,16 +417,6 @@ Filters news articles based on their publication date (`source_date`), removing 
 ### Concurrency Model
 
 **Synchronous — no concurrency.** Iterates synchronously over in-memory Map entries. No promises, no threads.
-
-### Constructor
-
-```typescript
-constructor(name: string = "filter_recency", input_map?: Record<string, string>, output_map?: Record<string, string>)
-```
-
-- `name` — Overrides the operator name (allows multiple instances such as `"post_fetch_filter_td"` and `"post_read_filter_td"` in a DAG).
-- `input_map` — Optional input task name mappings.
-- `output_map` — Optional output task name mappings.
 
 ---
 
