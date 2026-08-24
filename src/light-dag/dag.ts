@@ -23,13 +23,13 @@ export class LightDag {
         // Discover all global task names by scanning each operator's schemas
         // and applying name maps (schema name → global name).
         for (const op of operators) {
+            if (this.operators.has(op.name))
+                throw new Error(`Duplicate operator name: "${op.name}"`);
             for (const name of Object.keys(op.input_schema.shape).map(n => op.input_map?.[n] ?? n))
                 this.task_names.add(name);
             for (const [, outputs] of Object.entries(op.output_schemas))
                 for (const name of Object.keys(outputs.shape).map(n => op.output_map?.[n] ?? n))
                     this.task_names.add(name);
-            if (this.operators.has(op.name))
-                throw new Error(`Duplicate operator name: "${op.name}"`);
             this.operators.set(op.name, op);
         }
     }

@@ -55,6 +55,8 @@ export abstract class Operator {
 
     /** Alias a schema input name to a different global DAG task name. Chainable. */
     public mapInput(schema_name: string, global_name: string): Operator {
+        if (!Object.hasOwn(this.input_schema.shape, schema_name))
+            throw new Error(`Schema input name ${schema_name} does not exist in operator ${this.name}`);
         if (!this.input_map)
             this.input_map = {};
         this.input_map[schema_name] = global_name;
@@ -63,6 +65,11 @@ export abstract class Operator {
 
     /** Alias a schema output name to a different global DAG task name. Chainable. */
     public mapOutput(schema_name: string, global_name: string): Operator {
+        const exists = Object.values(this.output_schemas).some(
+            (schema) => Object.hasOwn(schema.shape, schema_name)
+        );
+        if (!exists)
+            throw new Error(`Schema output name ${schema_name} does not exist in operator ${this.name}`);
         if (!this.output_map)
             this.output_map = {};
         this.output_map[schema_name] = global_name;
@@ -71,6 +78,8 @@ export abstract class Operator {
 
     /** Alias a schema requires name to a different global context key. Chainable. */
     public mapRequires(schema_name: string, global_name: string): Operator {
+        if (!Object.hasOwn(this.requires_schema.shape, schema_name))
+            throw new Error(`Schema requires name ${schema_name} does not exist in operator ${this.name}`);
         if (!this.requires_map)
             this.requires_map = {};
         this.requires_map[schema_name] = global_name;
@@ -79,6 +88,8 @@ export abstract class Operator {
 
     /** Alias a schema options name to a different global options key. Chainable. */
     public mapOptions(schema_name: string, global_name: string): Operator {
+        if (!Object.hasOwn(this.options_schema.shape, schema_name))
+            throw new Error(`Schema options name ${schema_name} does not exist in operator ${this.name}`);
         if (!this.options_map)
             this.options_map = {};
         this.options_map[schema_name] = global_name;
