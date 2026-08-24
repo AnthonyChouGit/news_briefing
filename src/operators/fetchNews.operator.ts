@@ -63,8 +63,12 @@ export default async function fetchNews({ inputs, requires, options }: OperatorA
         }
 
         if (fetch_options?.debug) {
+            const categoryCounts = Array.from(
+                all_categories.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
             const total = Array.from(all_categories.values()).reduce((sum, map) => sum + map.size, 0);
-            console.log(`[FETCH] Total items fetched: ${total}`);
+            console.log(`[FETCH] Items fetched per category: ${categoryCounts} (total: ${total})`);
         }
 
         const op_output: FetchNewsOutput = { fetched_items: all_categories };

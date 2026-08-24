@@ -103,9 +103,13 @@ export default async function dedupeNews({ inputs, requires, options }: Operator
         await Promise.all(dedupePromises);
 
         if (isDebug) {
+            const remainingCounts = Array.from(
+                dedupe_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
             const totalAfter = Array.from(dedupe_input_items.values()).reduce((sum, map) => sum + map.size, 0);
             const dedupedCount = totalBefore - totalAfter;
-            console.log(`[DEDUPE] Total items deduped: ${dedupedCount} (remaining: ${totalAfter})`);
+            console.log(`[DEDUPE] Total items deduped: ${dedupedCount} (remaining: ${totalAfter}, per category: ${remainingCounts})`);
         }
 
         const op_output: DedupeNewsOutput = { deduped_items: dedupe_input_items };

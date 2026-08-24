@@ -35,12 +35,24 @@ const randomTruncate = <T>(items: T[], max_num: number): T[] => {
 export default async function truncateNews({ inputs, options }: OperatorArgs): Promise<OperatorOutput> {
     try {
         const input_items: Map<NewsCategory, Map<string, BriefNewsLike>> = (inputs as TruncateNewsInput).truncate_input_items;
-        const max_items_per_category: number = (options as TruncateNewsOptions).truncate_max_items_per_category;
+        const { truncate_max_items_per_category, debug } = options as TruncateNewsOptions;
         const truncated_items = new Map<NewsCategory, Map<string, BriefNewsLike>>(
             Array.from(input_items.entries(), ([category, items]) => {
-                return [category, new Map(randomTruncate(Array.from(items.entries()), max_items_per_category))];
+                return [category, new Map(randomTruncate(Array.from(items.entries()), truncate_max_items_per_category))];
             })
         );
+        if (debug) {
+            const originalCounts = Array.from(
+                input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            const remainingCounts = Array.from(
+                truncated_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            console.log(`[TRUNCATE] Original items per category: ${originalCounts}`);
+            console.log(`[TRUNCATE] Remaining items per category: ${remainingCounts}`);
+        }
         return { branch: "default", output: { truncated_items } };
     } catch (err) {
         const err_output: ErrorInfo = { err_code: 3, err_obj: err };

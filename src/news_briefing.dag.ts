@@ -14,14 +14,9 @@ import { FilterRecencyOperator } from "./operators/filterRecency.operator.js";
 
 const fetch_news_op = new FetchNewsOperator(); // In: categories  Out: fetched_items
 
-const post_fetch_filter_recency_op = new FilterRecencyOperator("post_fetch_filter_td")
-    .mapInput("filter_recency_input_items", "fetched_items")
-    .mapOutput("filtered_recency_items", "post_fetch_filtered_recency");
-// In: fetched_items Out: post_fetch_filtered_recency
-
 const hist_news_op = new HistoryNewsOperator(); // In: categories Out: history_items
 
-const dedupe_news_op = new DedupeNewsOperator().mapInput("dedupe_input_items", "post_fetch_filtered_recency");
+const dedupe_news_op = new DedupeNewsOperator().mapInput("dedupe_input_items", "fetched_items");
 // In: post_fetch_filtered_recency, history_items Out: deduped_items
 
 const pre_read_truncate_op = new TruncateNewsOperator().mapInput("truncate_input_items", "deduped_items")
@@ -33,8 +28,13 @@ const pre_read_truncate_op = new TruncateNewsOperator().mapInput("truncate_input
 const read_news_op = new ReadNewsOperator().mapInput("read_input_items", "pre_read_truncated_items");
 // In: pre_read_truncated_items Out: read_items
 
-const summarize_news_op = new SummarizeNewsOperator().mapInput("summarize_input_items", "read_items");
-// In: read_items Out: summarized_items
+const post_read_filter_recency_op = new FilterRecencyOperator()
+    .mapInput("filter_recency_input_items", "read_items")
+    .mapOutput("filtered_recency_items", "post_read_filtered_recency");
+// In: read_items Out: post_read_filtered_recency
+
+const summarize_news_op = new SummarizeNewsOperator().mapInput("summarize_input_items", "post_read_filtered_recency");
+// In: post_read_filtered_recency Out: summarized_items
 
 const post_summarize_truncate_op = new TruncateNewsOperator().mapInput("truncate_input_items", "summarized_items")
     .mapOutput("truncated_items", "post_summarize_truncated_items")
@@ -57,7 +57,7 @@ const error_op = new ErrorOperator(); // In: err_code err_obj Out: success
 
 export const news_briefing_dag = new LightDag([
     fetch_news_op,
-    post_fetch_filter_recency_op,
+    post_read_filter_recency_op,
     hist_news_op,
     dedupe_news_op,
     pre_read_truncate_op,

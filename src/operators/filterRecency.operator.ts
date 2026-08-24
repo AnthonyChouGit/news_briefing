@@ -36,7 +36,11 @@ export default async function filterRecency({ inputs, options }: OperatorArgs): 
         }
         if (debug) {
             const remaining = Array.from(filter_recency_input_items.values()).reduce((sum, map) => sum + map.size, 0);
-            console.log(`[FilterRecency] Filtered ${count} items older than ${filter_recency_td_hours} hours (remaining: ${remaining})`);
+            const remainingCounts = Array.from(
+                filter_recency_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            console.log(`[FilterRecency] Filtered ${count} items older than ${filter_recency_td_hours} hours (remaining: ${remaining}, per category: ${remainingCounts})`);
         }
         const op_output: OperatorOutput = { branch: "default", output: { filtered_recency_items: filter_recency_input_items } };
         return op_output;
@@ -52,9 +56,4 @@ export class FilterRecencyOperator extends Operator {
     output_schemas = { default: FilterRecencyOutputSchema, error: ErrorInfoSchema };
     options_schema = FilterRecencyOptionsSchema;
     exec = filterRecency;
-
-    constructor(name: string = "filter_recency", input_map?: Record<string, string>, output_map?: Record<string, string>) {
-        super(name, input_map, output_map);
-        this.name = name;
-    }
 }

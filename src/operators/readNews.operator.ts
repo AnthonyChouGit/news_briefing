@@ -1,6 +1,6 @@
 import * as z from "zod";
-import { type BriefNewsLike, BriefNewsLikeSchema } from "../types/brief_news.entity.js";
-import { type NewsCategory, NewsCategorySchema } from "../types/news_category.enum.js";
+import { type BriefNewsLike } from "../types/brief_news.entity.js";
+import { type NewsCategory } from "../types/news_category.enum.js";
 import { Piscina } from "piscina";
 export const ReadOptionsSchema = z.object({
     read_timeout: z.coerce.number().int().nonnegative().optional(),
@@ -33,9 +33,18 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
         const { read_input_items } = inputs as ReadNewsInput;
         const { thread_pool } = requires as ReadNewsRequires;
         const read_options = options as ReadOptions;
+        const isDebug = read_options?.debug;
 
         if (read_input_items.size === 0) {
             throw new Error("Categories map cannot be empty.");
+        }
+
+        let inputCounts = "";
+        if (isDebug) {
+            inputCounts = Array.from(
+                read_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
         }
 
         const tasks = Array.from(read_input_items.values(), (items) => {
@@ -68,6 +77,15 @@ export default async function readNews({ inputs, requires, options }: OperatorAr
 
         if (read_input_items.size === 0) {
             throw new Error("All categories failed to read.");
+        }
+
+        if (isDebug) {
+            const outputCounts = Array.from(
+                read_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            console.log(`[READ] Input items per category: ${inputCounts}`);
+            console.log(`[READ] Output items per category: ${outputCounts}`);
         }
 
         const op_output: ReadNewsOutput = { read_items: read_input_items };

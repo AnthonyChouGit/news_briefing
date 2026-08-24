@@ -141,6 +141,18 @@ export default async function summarizeNews({ inputs, requires, options }: Opera
         );
         const results = await Promise.all(summarize_promises);
         const summarized_items = new Map(results);
+        if (summarize_options?.debug) {
+            const inputCounts = Array.from(
+                summarize_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            const outputCounts = Array.from(
+                summarized_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
+            console.log(`[SUMMARIZE] Input items per category: ${inputCounts}`);
+            console.log(`[SUMMARIZE] Output items per category: ${outputCounts}`);
+        }
         const op_output: SummarizeNewsOutput = { summarized_items };
         return { branch: "default", output: op_output };
     } catch (err) {

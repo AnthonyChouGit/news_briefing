@@ -35,8 +35,12 @@ export default async function saveNews({ inputs, requires, options }: OperatorAr
         await Promise.all(save_promises);
 
         if (save_options?.debug) {
+            const categoryCounts = Array.from(
+                save_input_items.entries(),
+                ([category, items]) => `${category}: ${items.size}`
+            ).join(", ");
             const totalSaved = Array.from(save_input_items.values()).reduce((sum, map) => sum + map.size, 0);
-            console.log(`[SAVE] Total items saved: ${totalSaved}`);
+            console.log(`[SAVE] Items saved per category: ${categoryCounts} (total: ${totalSaved})`);
         }
 
         const op_output: SaveNewsOutput = { saved: true };
