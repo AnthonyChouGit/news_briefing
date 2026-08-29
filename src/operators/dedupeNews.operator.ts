@@ -12,6 +12,8 @@ const DEDUPE_INSTRUCTION = `You are a news deduplication engine. You will receiv
 
 Each article has these fields: hash_id, url, title, source_date, source_name, category, and optionally bullets (summary points).
 
+Note on source_date: For newly fetched articles, source_date may not have been populated yet and could be set to a default fallback value (such as 1970-01-01 / epoch 0). If source_date is a default or invalid timestamp, do NOT take it into account for time comparison. Instead, evaluate the chronological development and latest stage directly from the titles, reported facts, and context.
+
 Your task is to identify which articles in "fetched" are redundant and return their hash_id values. Redundancy occurs in two ways:
 
 1. Redundancy against "covered" (Cross-Source / History Duplication):
@@ -23,7 +25,7 @@ EXCEPTION — New Developments: If a fetched article covers the same event as a 
 2. Duplication within "fetched" (Intra-Batch Duplication):
 Multiple articles within "fetched" may report on the **same underlying news event** (for example, the same event reported by multiple news sources, or multiple news items tracking different development stages of the same event).
 For any cluster of articles in "fetched" covering the same event:
-- Keep ONLY the single **latest item with the latest development stage** (the one representing the most advanced stage of the event and the most up-to-date information, taking into account the reported developments and source_date).
+- Keep ONLY the single **latest item with the latest development stage** (the one representing the most advanced stage of the event and the most up-to-date information, determined by the reported developments and context; do NOT take source_date into account if it is the default/fallback value set during fetch).
 - Mark all other earlier, redundant, or multi-source duplicate articles in "fetched" for that event as redundant (include their hash_id values in the output).
 
 3. Combined Scenario:
