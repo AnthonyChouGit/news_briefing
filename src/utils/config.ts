@@ -51,6 +51,13 @@ const DagConfigSchema = z.object({
     dag_timeout: z.coerce.number().positive().optional()
 });
 
+const TruncateByCategoryOptionsSchema = z.object({
+    truncate_num_by_cat: z.string().default("{}").transform((val) => JSON.parse(val))
+        .pipe(z.record(NewsCategorySchema, z.number().int().positive())),
+    debug: BooleanConfigSchema
+});
+
+
 export const ConfigSchema = DbConfigSchema
     .and(AIClientConfigSchema)
     .and(FetchOptionsSchema.omit({ debug: true }))
@@ -65,7 +72,8 @@ export const ConfigSchema = DbConfigSchema
     .and(ErrorHandlerConfigSchema)
     .and(CronConfigSchema)
     .and(DagConfigSchema)
-    .and(FilterRecencyOptionsSchema.omit({ debug: true }));
+    .and(FilterRecencyOptionsSchema.omit({ debug: true }))
+    .and(TruncateByCategoryOptionsSchema);
 
 export type Config = z.infer<typeof ConfigSchema>;
 

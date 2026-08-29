@@ -27,7 +27,8 @@ Every operator (except `ErrorOperator`) follows a `try/catch` pattern: on succes
 | [SaveNewsOperator](#9-savenewsoperator) | 9 | Concurrent promises per category (`Promise.all`) |
 | [SendNewsOperator](#10-sendnewsoperator) | 10 | Concurrent promises per channel (`Promise.allSettled`) |
 | [FilterRecencyOperator](#11-filterrecencyoperator) | 11 | Synchronous — iterates entries |
-| [ErrorOperator](#12-erroroperator) | — | Synchronous — logs and returns |
+| [TruncateByCategoryOperator](#12-truncatebycategoryoperator) | 12 | Synchronous — iterates entries |
+| [ErrorOperator](#13-erroroperator) | — | Synchronous — logs and returns |
 
 ---
 
@@ -110,9 +111,7 @@ Removes duplicate news articles by comparing newly fetched items against previou
 
 ### Purpose
 
-Limits the number of articles per category to a configurable maximum using random selection. In the pipeline DAG, it is utilized in two distinct phases:
-1. **`pre_read_truncate_news`:** Limits items after deduplication before full article reading (`readNews`) to minimize scraping load and bandwidth.
-2. **`post_summarize_truncate_news`:** Further limits items after AI summarization to curate the final digest length per category before formatting and delivery.
+Limits the number of articles per category to a configurable maximum using random selection. In the pipeline DAG, it is utilized in the **`pre_read_truncate_news`** phase to constrain the volume of candidate articles after deduplication before full article reading (`readNews`), minimizing scraping load and bandwidth.
 
 ### Schemas
 
@@ -266,7 +265,7 @@ Converts the structured news data into a formatted string ready for delivery. Th
 
 1. Calls `formatTelegramMarkdown(format_input_items, options)` which:
    - Builds a localized date header from the current timestamp and configured timezone.
-   - Sorts categories in a preferred display order.
+   - Preserves and renders categories in the exact insertion order of the input map.
    - For each category, sorts articles by date (newest first) and renders them as Telegram MarkdownV2 with:
      - Category emoji + localized label as a bold header.
      - Each article as `• *Title* Date [Source](url)` with indented bullet points.
@@ -420,7 +419,39 @@ Filters news articles based on their publication date (`source_date`), removing 
 
 ---
 
-## 12. ErrorOperator
+## 12. TruncateByCategoryOperator
+
+**File:** [`truncateByCategory.operator.ts`](./truncateByCategory.operator.ts)  
+**Name:** `truncate_by_cat`  
+**Error Code:** `12`
+
+### Purpose
+
+Limits the number of articles per category after AI summarization (`post_summarize_truncated_items`), providing fine-grained per-category item caps configured via `truncate_num_by_cat` with a fallback to `truncate_max_items_per_category`.
+
+### Schemas
+
+| Schema | Fields |
+|---|---|
+| **Input** | `truncate_by_cat_input_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
+| **Output (default)** | `truncate_by_cat_output_items: Map<NewsCategory, Map<string, BriefNewsLike>>` |
+| **Output (error)** | `ErrorInfo { err_code: 12, err_obj }` |
+| **Options** | `truncate_num_by_cat: Record<NewsCategory, number>` (default: `{}`), `truncate_max_items_per_category: number` (positive integer), `debug: boolean` (default: `false`) |
+
+### Behavior
+
+1. Iterates over each category in `truncate_by_cat_input_items`.
+2. Resolves the target item limit for the category: `truncate_num_by_cat[category] ?? truncate_max_items_per_category`.
+3. If the category map contains more items than the resolved limit, replaces the inner map with a sliced sub-map retaining the first `num` items.
+4. Returns the updated map as `{ truncate_by_cat_output_items: input_items }`.
+
+### Concurrency Model
+
+**Synchronous — no concurrency.** Iterates synchronously over in-memory Map entries. No promises, no threads.
+
+---
+
+## 13. ErrorOperator
 
 **File:** [`error.operator.ts`](./error.operator.ts)  
 **Name:** `error`  
@@ -467,7 +498,7 @@ None of the operators spawn actual OS threads directly. Thread-level parallelism
 | **Piscina worker threads** (`Promise.allSettled`) | `fetchNews`, `readNews`, `formatNews` *(thread variant)* | ✅ Yes | Partial failures tolerated |
 | **`Promise.all`** (concurrent async) | `dedupeNews`, `summarizeNews`, `historyNews`, `saveNews` | ❌ No (event loop) | All-or-nothing (one failure rejects all) |
 | **`Promise.allSettled`** (concurrent async) | `sendNews` | ❌ No (event loop) | Partial failures tolerated |
-| **Synchronous** | `truncateNews`, `formatNews` *(sync variant)*, `mergeStatus`, `filterRecency`, `error` | ❌ No | N/A |
+| **Synchronous** | `truncateNews`, `truncateByCategory`, `formatNews` *(sync variant)*, `mergeStatus`, `filterRecency`, `error` | ❌ No | N/A |
 
 ### Key distinction
 
@@ -491,3 +522,4 @@ None of the operators spawn actual OS threads directly. Thread-level parallelism
 | 9 | `saveNews` | Database write failure |
 | 10 | `sendNews` | Unexpected error during Telegram send setup |
 | 11 | `filterRecency` | Error during date recency filtering |
+| 12 | `truncateByCategory` | Unexpected input shape or iteration error |

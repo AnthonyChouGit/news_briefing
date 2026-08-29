@@ -56,13 +56,13 @@
   <!-- FilterRecency (post-read) -> SummarizeNews -->
   <path d="M 390 463 L 390 485" class="conn" marker-end="url(#arrow)" />
 
-  <!-- SummarizeNews -> TruncateNews (post-summarize) -->
+  <!-- SummarizeNews -> TruncateByCategory (post-summarize) -->
   <path d="M 390 533 L 390 555" class="conn" marker-end="url(#arrow)" />
 
-  <!-- TruncateNews (post-summarize) -> FormatNews -->
+  <!-- TruncateByCategory (post-summarize) -> FormatNews -->
   <path d="M 350 603 L 350 616 L 250 616 L 250 630" class="conn" marker-end="url(#arrow)" />
 
-  <!-- TruncateNews (post-summarize) -> SaveNews -->
+  <!-- TruncateByCategory (post-summarize) -> SaveNews -->
   <path d="M 430 603 L 430 616 L 530 616 L 530 630" class="conn" marker-end="url(#arrow)" />
 
   <!-- FormatNews -> SendNews -->
@@ -151,11 +151,11 @@
     <text x="390" y="523" text-anchor="middle" class="node-sub">LLM Headlines &amp; Bullets</text>
   </g>
 
-  <!-- Level 7: TruncateNews (post-summarize) -->
+  <!-- Level 7: TruncateByCategory (post-summarize) -->
   <g filter="url(#shadow)">
-    <rect x="280" y="555" width="220" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
-    <text x="390" y="577" text-anchor="middle" class="node-title">✂️ TruncateNewsOperator</text>
-    <text x="390" y="593" text-anchor="middle" class="node-sub">post_summarize_truncate_news</text>
+    <rect x="270" y="555" width="240" height="48" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5" />
+    <text x="390" y="577" text-anchor="middle" class="node-title">✂️ TruncateByCategoryOperator</text>
+    <text x="390" y="593" text-anchor="middle" class="node-sub">truncate_by_cat</text>
   </g>
 
   <!-- Level 8: FormatNews & SaveNews -->

@@ -93,9 +93,9 @@ export default async function dedupeNews({ inputs, requires, options }: Operator
         const dedupePromises = Array.from(dedupe_input_items.entries(),
             async ([category, items]) => {
                 const history_for_category = history_items.get(category);
-                if (history_for_category && history_for_category.size > 0) {
-                    dedupeById(items, Array.from(history_for_category.keys()));
-                }
+                if (!history_for_category)
+                    return;
+                dedupeById(items, Array.from(history_for_category.keys()));
                 const covered_map = history_for_category ?? new Map<string, BriefNewsLike>();
                 await dedupeByEvent(items, covered_map, ai_client);
             }

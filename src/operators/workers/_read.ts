@@ -205,6 +205,24 @@ function extractMotorsport(html: string): string {
 }
 
 /**
+ * Global Times articles: `<div class="article_right">` container with `<br />` separators.
+ * The article body is plain text separated by `<br />` tags, not wrapped in `<p>` tags.
+ */
+function extractGlobalTimes(html: string): string {
+    const body = html.match(/<div[^>]*class="article_right"[^>]*>(.*?)<\/div>/s);
+    if (body?.[1]) {
+        const paragraphs = body[1]
+            .split(/<br\s*\/?>/gi)
+            .map(p => collapseWhitespace(stripTags(p)))
+            .filter(p => p.length > 20);
+        if (paragraphs.length > 0) {
+            return paragraphs.slice(0, MAX_PARAGRAPHS).join("\n\n");
+        }
+    }
+    return extractGeneric(html);
+}
+
+/**
  * Generic fallback extractor for unknown sources.
  * All `<p>` tags filtered by both lower (40) and upper (5000) char bounds.
  * The upper bound prevents inline CSS/JS blocks from being captured
@@ -236,8 +254,10 @@ const SOURCE_NAME_EXTRACTORS: Record<string, HtmlExtractor> = {
     "Formula 1": extractF1,
     "Motorsport.com": extractMotorsport,
     "RaceFans": extractGeneric,
-    "澎湃新闻": extractGeneric,
-    "南方都市报": extractGeneric,
+    "Global Times": extractGlobalTimes,
+    "CGTN": extractGeneric,
+    "Al Jazeera": extractGeneric,
+    "France 24": extractGeneric,
 };
 
 /**
@@ -268,10 +288,14 @@ const HOST_EXTRACTORS: Record<string, HtmlExtractor> = {
     "motorsport.com": extractMotorsport,
     "www.racefans.net": extractGeneric,
     "racefans.net": extractGeneric,
-    "www.thepaper.cn": extractGeneric,
-    "thepaper.cn": extractGeneric,
-    "www.nfnews.com": extractGeneric,
-    "nfnews.com": extractGeneric,
+    "www.globaltimes.cn": extractGlobalTimes,
+    "globaltimes.cn": extractGlobalTimes,
+    "news.cgtn.com": extractGeneric,
+    "www.cgtn.com": extractGeneric,
+    "www.aljazeera.com": extractGeneric,
+    "aljazeera.com": extractGeneric,
+    "www.france24.com": extractGeneric,
+    "france24.com": extractGeneric,
 };
 
 /** Sources whose article pages are skipped (e.g. Motorsport.com 403s but has RSS description pre-populated) */

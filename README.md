@@ -12,8 +12,8 @@ The pipeline is orchestrated by a lightweight Directed Acyclic Graph (**LightDAG
   <img src="docs/architecture.svg" alt="News Briefing LightDAG Architecture" width="100%" />
 </p>
 
-- **Multi-Category Ingestion & Smart Filtering:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `shenzhen`, and `tabletennis`. Automatically filters out paywalled/anti-bot domains during feed parsing and enforces post-read recency filtering (`FilterRecencyOperator`).
-- **Two-Stage Intelligent Truncation:** Applies random truncation pre-read (`pre_read_truncate_news`) to minimize scraping load and post-summarize (`post_summarize_truncate_news`) to constrain the final digest length per category.
+- **Multi-Category Ingestion & Smart Filtering:** Supported categories include `international`, `football`, `realmadrid`, `f1`, `ai`, `mlb`, `domestic`, and `tabletennis`. Automatically filters out paywalled/anti-bot domains during feed parsing and enforces post-read recency filtering (`FilterRecencyOperator`).
+- **Two-Stage Intelligent Truncation:** Applies random truncation pre-read (`pre_read_truncate_news` / `TruncateNewsOperator`) to minimize scraping load and category-specific truncation post-summarize (`truncate_by_cat` / `TruncateByCategoryOperator`) to precisely control digest length per category.
 - **True Parallel Processing:** Uses [Piscina](https://github.com/piscinajs/piscina) worker threads for CPU and I/O intensive web scraping (`fetch` and `read`) off the main event loop, equipped with modern browser header emulation.
 - **Two-Stage Smart Deduplication:** Combines exact PostgreSQL historical hash filtering with LLM semantic event matching (`DedupeNewsOperator`) protected by automated JSON repair to track development stages and eliminate redundant coverage.
 - **Multilingual AI Summarization:** Generates concise, journalistic headlines and substantive bullet points in your selected language (`SummarizeNewsOperator`), reinforced with strict content quality filtering, configurable bullet counts and character lengths (`summarize_min_bullets`/`summarize_max_bullets`, `summarize_min_chars`/`summarize_max_chars`), schema formatting, and quote escaping rules. Supports multiple AI providers (`openai`, `anthropic`, `openai-compatible`).
@@ -50,7 +50,7 @@ Configure your credentials and preferences in `src/.env` (this file will be auto
 | `ai_timeout` | No | `300000` | AI request timeout in milliseconds |
 | `ai_max_retries` | No | `3` | AI request retry count |
 | `telegram_token` | Yes | — | Telegram Bot token from [@BotFather](https://t.me/botfather) |
-| `categories` | Yes | — | Comma-separated categories: `international, football, realmadrid, f1, ai, mlb, shenzhen, tabletennis` |
+| `categories` | Yes | — | Comma-separated categories: `international, football, realmadrid, f1, ai, mlb, domestic, tabletennis` |
 | `channels` | Yes | — | Comma-separated target Telegram chat/channel IDs |
 | `language` | No | `English` | Output language: `English`, `Chinese`, `Spanish`, `French`, `German`, `Italian`, `Portuguese`, `Russian`, `Japanese`, `Korean` |
 | `summarize_min_chars` | Yes | — | Minimum character count per bullet point |
@@ -58,7 +58,8 @@ Configure your credentials and preferences in `src/.env` (this file will be auto
 | `summarize_min_bullets` | Yes | — | Minimum number of bullet points per article |
 | `summarize_max_bullets` | Yes | — | Maximum number of bullet points per article |
 | `pre_read_truncate_number` | Yes | — | Max articles per category to read full body contents for |
-| `post_summarize_truncate_number` | Yes | — | Max articles per category to include in the final briefing |
+| `post_summarize_truncate_number` | Yes | — | Default max articles per category to include in the final briefing |
+| `truncate_num_by_cat` | No | `{}` | JSON map of per-category post-summarize limits (e.g. `{"international":3,"domestic":3}`) |
 | `cron_expr` | Required for Cron | — | 5-field cron schedule (e.g. `0 8,12,18,22 * * *`) |
 | `time_zone` | No | `UTC` | Timezone for cron schedule & date headers |
 | `filter_recency_td_hours` | No | `24` | Maximum age of news in hours |

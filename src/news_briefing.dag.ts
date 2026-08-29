@@ -11,6 +11,7 @@ import { SendNewsOperator } from "./operators/sendNews.operator.js";
 import { MergeStatusOperator } from "./operators/mergeStatus.operator.js";
 import { FormatNewsOperatorThread } from "./operators/formatNews.operator.js";
 import { FilterRecencyOperator } from "./operators/filterRecency.operator.js";
+import { TruncateByCategoryOperator } from "./operators/truncateByCategory.operator.js";
 
 const fetch_news_op = new FetchNewsOperator(); // In: categories  Out: fetched_items
 
@@ -36,10 +37,10 @@ const post_read_filter_recency_op = new FilterRecencyOperator()
 const summarize_news_op = new SummarizeNewsOperator().mapInput("summarize_input_items", "post_read_filtered_recency");
 // In: post_read_filtered_recency Out: summarized_items
 
-const post_summarize_truncate_op = new TruncateNewsOperator().mapInput("truncate_input_items", "summarized_items")
-    .mapOutput("truncated_items", "post_summarize_truncated_items")
-    .mapOptions("truncate_max_items_per_category", "post_summarize_truncate_number")
-    .setName("post_summarize_truncate_news");
+const truncate_by_cat_op = new TruncateByCategoryOperator()
+    .mapInput("truncate_by_cat_input_items", "summarized_items")
+    .mapOutput("truncate_by_cat_output_items", "post_summarize_truncated_items")
+    .mapOptions("truncate_max_items_per_category", "post_summarize_truncate_number");
 // In: summarized_items Out: post_summarize_truncated_items
 
 const format_news_op = new FormatNewsOperatorThread().mapInput("format_input_items", "post_summarize_truncated_items");
@@ -68,5 +69,5 @@ export const news_briefing_dag = new LightDag([
     save_news_op,
     success_merge_op,
     error_op,
-    post_summarize_truncate_op
+    truncate_by_cat_op
 ]);

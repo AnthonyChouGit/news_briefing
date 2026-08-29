@@ -25,7 +25,7 @@
  * - `"f1"`
  * - `"ai"`
  * - `"mlb"`
- * - `"shenzhen"`
+ * - `"domestic"`
  * - `"tabletennis"`
  *
  * ### Error Handling
@@ -456,32 +456,6 @@ async function resolveGoogleNewsUrls(
 
 // ─── Source Extractors ───────────────────────────────────────
 
-function extractBbc(html: string): RawNewsItem[] {
-    const results: RawNewsItem[] = [];
-    const seenUrls = new Set<string>();
-    const pattern = /<h2[^>]*data-testid="card-headline"[^>]*>(.*?)<\/h2>/gs;
-    for (const m of html.matchAll(pattern)) {
-        const title = stripTags(m[1] ?? "");
-        if (!title || title.length < 10) continue;
-        const pos = m.index ?? 0;
-        const before = html.slice(Math.max(0, pos - 5000), pos);
-        let aLinks = [...before.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/(?:articles|videos|live|[a-z0-9_-]+\/articles)\/[^"]+)"/g)];
-        if (aLinks.length === 0) {
-            const after = html.slice(pos, pos + 2000);
-            aLinks = [...after.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/(?:articles|videos|live|[a-z0-9_-]+\/articles)\/[^"]+)"/g)];
-        }
-        if (aLinks.length === 0) {
-            aLinks = [...before.matchAll(/<a[^>]*href="((?:https:\/\/www\.bbc\.com)?\/(?:news|sport)\/[^"]+)"/g)];
-        }
-        const lastLink = aLinks[aLinks.length - 1];
-        let url = lastLink?.[1] ? (lastLink[1].startsWith("http") ? lastLink[1] : `https://www.bbc.com${lastLink[1]}`) : "";
-        if (!url || !isArticleUrl(url)) continue;
-        if (seenUrls.has(url)) continue;
-        seenUrls.add(url);
-        results.push({ title, url, time: "", category: "international" });
-    }
-    return results;
-}
 
 function extractBbcSport(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
@@ -508,7 +482,6 @@ function extractBbcSport(html: string): RawNewsItem[] {
     }
     return results;
 }
-
 function extractCnn(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
     const seenUrls = new Set<string>();
@@ -601,73 +574,29 @@ function extractTechcrunch(html: string): RawNewsItem[] {
 
 
 
-function extractThepaper(html: string): RawNewsItem[] {
-    // Build contId → pubTime map from embedded JSON data
-    const timeMap = new Map<string, string>();
-    const timePattern = /"contId":"?(\d+)"?[^}]{0,800}"pubTime":"([^"]*?)"/g;
-    for (const pm of html.matchAll(timePattern)) {
-        timeMap.set(pm[1] ?? "", pm[2] ?? "");
-    }
-
+function extractGlobalTimes(html: string): RawNewsItem[] {
     const results: RawNewsItem[] = [];
     const seenUrls = new Set<string>();
-    const h2Pattern = /<h2[^>]*>(.*?)<\/h2>/gs;
-    const skipTitles = new Set(["推荐", "热榜", "视频", "专题", "广告"]);
-
-    for (const m of html.matchAll(h2Pattern)) {
-        const title = stripTags(m[1] ?? "");
-        if (!title || title.length < 10 || title.length > 200) continue;
-        if (skipTitles.has(title)) continue;
-
-        const pos = m.index ?? 0;
-        const before = html.slice(Math.max(0, pos - 3000), pos);
-        const aLinks = [...before.matchAll(/<a[^>]*href="(\/newsDetail_forward_(\d+))"/g)];
-        if (aLinks.length === 0) continue;
-
-        const lastLink = aLinks[aLinks.length - 1]!;
-        const url = `https://www.thepaper.cn${lastLink[1]}`;
-        if (!isArticleUrl(url) || seenUrls.has(url)) continue;
-        seenUrls.add(url);
-
-        const contId = lastLink[2] ?? "";
-        results.push({
-            title,
-            url,
-            time: timeMap.get(contId) ?? "",
-            category: "shenzhen",
-        });
-    }
-    return results.slice(0, 30);
-}
-
-function extractNfnews(html: string): RawNewsItem[] {
-    const results: RawNewsItem[] = [];
-    const seenUrls = new Set<string>();
-    const pattern = /class="[^"]*title[^"]*"[^>]*>\s*(.{15,200}?)\s*<\//gs;
+    // Global Times homepage uses <a> tags with class="new_title_s", "new_title_m", "new_title_ml"
+    const pattern = /<a[^>]*href="(https?:\/\/www\.globaltimes\.cn\/page\/\d+\/\d+\.shtml)"[^>]*class="new_title_[sml][l]?"[^>]*>([^<]+)<\/a>/g;
+    const patternAlt = /<a[^>]*class="new_title_[sml][l]?"[^>]*href="(https?:\/\/www\.globaltimes\.cn\/page\/\d+\/\d+\.shtml)"[^>]*>([^<]+)<\/a>/g;
 
     for (const m of html.matchAll(pattern)) {
-        let title = stripTags(m[1] ?? "");
-        title = title.replace(/\s+(南方\+|南方\S*周刊|南方周末)\s*$/, "").trim();
-        title = title.replace(/\s+\d{2}:\d{2}\s*$/, "").trim();
-        if (!title || title.length < 10) continue;
-
-        const pos = m.index ?? 0;
-        const before = html.slice(Math.max(0, pos - 3000), pos);
-        const aLinks = [
-            ...before.matchAll(
-                /<a[^>]*href="((?:https?:\/\/static\.nfnews\.com\/content\/|\/content\/)[^"]+)"/g,
-            ),
-        ];
-        if (aLinks.length === 0) continue;
-
-        const lastLink = aLinks[aLinks.length - 1]!;
-        const rawHref = lastLink[1] ?? "";
-        const url = rawHref.startsWith("http")
-            ? rawHref
-            : `https://www.nfnews.com${rawHref}`;
-        if (!isArticleUrl(url) || seenUrls.has(url)) continue;
+        const url = m[1] ?? "";
+        const title = stripTags(m[2] ?? "");
+        if (!title || title.length < 10 || !isArticleUrl(url)) continue;
+        if (seenUrls.has(url)) continue;
         seenUrls.add(url);
-        results.push({ title, url, time: "", category: "shenzhen" });
+        results.push({ title, url, time: "", category: "domestic" });
+    }
+    // Also match the alternate attribute order (class before href)
+    for (const m of html.matchAll(patternAlt)) {
+        const url = m[1] ?? "";
+        const title = stripTags(m[2] ?? "");
+        if (!title || title.length < 10 || !isArticleUrl(url)) continue;
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
+        results.push({ title, url, time: "", category: "domestic" });
     }
     return results.slice(0, 30);
 }
@@ -757,20 +686,12 @@ async function fetchAndExtractHtml(
     }
 }
 
-async function fetchBbc(options?: FetchOptions): Promise<BriefNewsLike[]> {
-    return fetchAndExtractHtml("https://www.bbc.com/news", "BBC", extractBbc, options);
-}
-
 async function fetchBbcSport(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://www.bbc.com/sport", "BBC Sport", extractBbcSport, options);
 }
 
 async function fetchCnnWorld(options?: FetchOptions): Promise<BriefNewsLike[]> {
     return fetchAndExtractHtml("https://edition.cnn.com/world", "CNN", extractCnn, options);
-}
-
-async function fetchCnnSport(options?: FetchOptions): Promise<BriefNewsLike[]> {
-    return fetchAndExtractHtml("https://edition.cnn.com/sport", "CNN", extractCnn, options);
 }
 
 async function fetchMarca(options?: FetchOptions): Promise<BriefNewsLike[]> {
@@ -802,12 +723,8 @@ async function fetchTechcrunch(options?: FetchOptions): Promise<BriefNewsLike[]>
 
 
 
-async function fetchThepaper(options?: FetchOptions): Promise<BriefNewsLike[]> {
-    return fetchAndExtractHtml("https://www.thepaper.cn", "澎湃新闻", extractThepaper, options);
-}
-
-async function fetchNfnews(options?: FetchOptions): Promise<BriefNewsLike[]> {
-    return fetchAndExtractHtml("https://www.nfnews.com", "南方都市报", extractNfnews, options);
+async function fetchGlobalTimes(options?: FetchOptions): Promise<BriefNewsLike[]> {
+    return fetchAndExtractHtml("https://www.globaltimes.cn/", "Global Times", extractGlobalTimes, options);
 }
 
 async function fetchRacefans(options?: FetchOptions): Promise<BriefNewsLike[]> {
@@ -817,6 +734,21 @@ async function fetchRacefans(options?: FetchOptions): Promise<BriefNewsLike[]> {
 // ─── RSS Feed Configuration ─────────────────────────────────
 
 const RSS_FEEDS: Record<string, RssFeedConfig> = {
+    bbc_world: {
+        url: "https://feeds.bbci.co.uk/news/world/rss.xml",
+        category: "international",
+        sourceName: "BBC",
+    },
+    aljazeera: {
+        url: "https://www.aljazeera.com/xml/rss/all.xml",
+        category: "international",
+        sourceName: "Al Jazeera",
+    },
+    france24: {
+        url: "https://www.france24.com/en/rss",
+        category: "international",
+        sourceName: "France 24",
+    },
     gn_international: {
         url: "https://news.google.com/rss/search?q=international+news&hl=en-US&gl=US&ceid=US:en",
         category: "international",
@@ -857,10 +789,10 @@ const RSS_FEEDS: Record<string, RssFeedConfig> = {
         category: "ai",
         sourceName: "Google News",
     },
-    gn_shenzhen: {
-        url: "https://news.google.com/rss/search?q=Shenzhen+Guangdong+news&hl=en-US&gl=US&ceid=US:en",
-        category: "shenzhen",
-        sourceName: "Google News",
+    cgtn_china: {
+        url: "https://www.cgtn.com/subscribe/rss/section/china.xml",
+        category: "domestic",
+        sourceName: "CGTN",
     },
     gn_football: {
         url: "https://news.google.com/rss/search?q=(football+OR+soccer)+AND+(%22Champions+League%22+OR+%22Premier+League%22+OR+%22La+Liga%22+OR+%22Serie+A%22+OR+%22Bundesliga%22+OR+%22UEFA%22+OR+%22transfer+news%22)+-nfl+-rugby+-hockey&hl=en-US&gl=US&ceid=US:en",
@@ -938,9 +870,10 @@ type SourceFetcher = (options?: FetchOptions) => Promise<BriefNewsLike[]>;
 
 const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
     international: [
-        fetchBbc,
+        (opts) => fetchRssFeed("bbc_world", opts),
         fetchCnnWorld,
-        fetchCnnSport,
+        (opts) => fetchRssFeed("aljazeera", opts),
+        (opts) => fetchRssFeed("france24", opts),
         (opts) => fetchRssFeed("gn_international", opts),
         (opts) => fetchRssFeed("gn_chinanews", opts),
     ],
@@ -968,10 +901,9 @@ const CATEGORY_SOURCES: Record<NewsCategory, SourceFetcher[]> = {
     mlb: [
         (opts) => fetchRssFeed("gn_mlb", opts),
     ],
-    shenzhen: [
-        fetchThepaper,
-        fetchNfnews,
-        (opts) => fetchRssFeed("gn_shenzhen", opts),
+    domestic: [
+        fetchGlobalTimes,
+        (opts) => fetchRssFeed("cgtn_china", opts),
     ],
     tabletennis: [
         (opts) => fetchRssFeed("gn_wtt", opts),

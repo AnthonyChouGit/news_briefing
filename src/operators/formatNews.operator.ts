@@ -32,32 +32,24 @@ const CATEGORY_EMOJI: Record<NewsCategory, string> = {
     f1: "🏎️",
     ai: "🤖",
     mlb: "⚾",
-    shenzhen: "🏙️",
+    domestic: "🇨🇳",
     tabletennis: "🏓",
 };
 
 /** Localized category display names keyed by Language then NewsCategory. */
 const CATEGORY_LABELS: Record<string, Record<NewsCategory, string>> = {
-    English: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formula 1", ai: "AI & Tech", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Table Tennis" },
-    Chinese: { international: "国际视野", football: "足球", realmadrid: "皇家马德里", f1: "F1·赛车", ai: "AI·大模型", mlb: "MLB·棒球", shenzhen: "深圳·国内", tabletennis: "乒乓球" },
-    Spanish: { international: "Panorama Internacional", football: "Fútbol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA y Tecnología", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tenis de Mesa" },
-    French: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formule 1", ai: "IA et Tech", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tennis de Table" },
-    German: { international: "International", football: "Fußball", realmadrid: "Real Madrid", f1: "Formel 1", ai: "KI & Technik", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tischtennis" },
-    Italian: { international: "Internazionale", football: "Calcio", realmadrid: "Real Madrid", f1: "Formula 1", ai: "IA e Tecnologia", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tennistavolo" },
-    Portuguese: { international: "Internacional", football: "Futebol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA e Tecnologia", mlb: "MLB", shenzhen: "Shenzhen", tabletennis: "Tênis de Mesa" },
-    Russian: { international: "Международные", football: "Футбол", realmadrid: "Реал Мадрид", f1: "Формула 1", ai: "ИИ и технологии", mlb: "MLB", shenzhen: "Шэньчжэнь", tabletennis: "Настольный теннис" },
-    Japanese: { international: "国際情勢", football: "サッカー", realmadrid: "レアル・マドリード", f1: "F1", ai: "AI・テクノロジー", mlb: "MLB", shenzhen: "深セン・国内", tabletennis: "卓球" },
-    Korean: { international: "국제", football: "축구", realmadrid: "레알 마드리드", f1: "F1", ai: "AI & 테크", mlb: "MLB", shenzhen: "선전·국내", tabletennis: "탁구" },
+    English: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formula 1", ai: "AI & Tech", mlb: "MLB", domestic: "China Domestic", tabletennis: "Table Tennis" },
+    Chinese: { international: "国际视野", football: "足球", realmadrid: "皇家马德里", f1: "F1·赛车", ai: "AI·大模型", mlb: "MLB·棒球", domestic: "国内新闻", tabletennis: "乒乓球" },
+    Spanish: { international: "Panorama Internacional", football: "Fútbol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA y Tecnología", mlb: "MLB", domestic: "China Nacional", tabletennis: "Tenis de Mesa" },
+    French: { international: "International", football: "Football", realmadrid: "Real Madrid", f1: "Formule 1", ai: "IA et Tech", mlb: "MLB", domestic: "Chine Nationale", tabletennis: "Tennis de Table" },
+    German: { international: "International", football: "Fußball", realmadrid: "Real Madrid", f1: "Formel 1", ai: "KI & Technik", mlb: "MLB", domestic: "China Inland", tabletennis: "Tischtennis" },
+    Italian: { international: "Internazionale", football: "Calcio", realmadrid: "Real Madrid", f1: "Formula 1", ai: "IA e Tecnologia", mlb: "MLB", domestic: "Cina Nazionale", tabletennis: "Tennistavolo" },
+    Portuguese: { international: "Internacional", football: "Futebol", realmadrid: "Real Madrid", f1: "Fórmula 1", ai: "IA e Tecnologia", mlb: "MLB", domestic: "China Nacional", tabletennis: "Tênis de Mesa" },
+    Russian: { international: "Международные", football: "Футбол", realmadrid: "Реал Мадрид", f1: "Формула 1", ai: "ИИ и технологии", mlb: "MLB", domestic: "Китай внутри", tabletennis: "Настольный теннис" },
+    Japanese: { international: "国際情勢", football: "サッカー", realmadrid: "レアル・マドリード", f1: "F1", ai: "AI・テクノロジー", mlb: "MLB", domestic: "中国国内", tabletennis: "卓球" },
+    Korean: { international: "국제", football: "축구", realmadrid: "레알 마드리드", f1: "F1", ai: "AI & 테크", mlb: "MLB", domestic: "중국 국내", tabletennis: "탁구" },
 };
 
-/**
- * Preferred display order for categories.
- * Categories missing from this list are appended at the end.
- */
-const CATEGORY_ORDER: readonly NewsCategory[] = [
-    "international", "ai", "football", "realmadrid",
-    "f1", "mlb", "tabletennis", "shenzhen",
-] as const;
 
 /** Map Language enum values to BCP 47 locale tags for date formatting. */
 const LANGUAGE_LOCALE: Record<string, string> = {
@@ -97,22 +89,13 @@ function buildDateHeader(
     });
     const dateTimeStr = `${dateStr} ${timeStr}`;
 
-    const categoryEmojis = sortCategories([...all_items.keys()])
+    const categoryEmojis = [...all_items.keys()]
         .map((cat) => CATEGORY_EMOJI[cat] ?? "")
         .filter(Boolean)
         .join("");
 
     const titlePrefix = language === "Chinese" ? "新闻简报" : "News Briefing";
     return `📰 *${escapeMarkdownV2(titlePrefix)} \\| ${escapeMarkdownV2(dateTimeStr)} ${categoryEmojis}*`;
-}
-
-/** Sort categories according to the preferred display order. */
-function sortCategories(categories: NewsCategory[]): NewsCategory[] {
-    return categories.sort((a, b) => {
-        const ia = CATEGORY_ORDER.indexOf(a);
-        const ib = CATEGORY_ORDER.indexOf(b);
-        return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
-    });
 }
 
 function formatItemDate(date: Date, language: Language, time_zone?: string): string {
@@ -200,11 +183,7 @@ function formatTelegramMarkdown(
     const dateHeader = buildDateHeader(all_items, options.language, options.time_zone);
     if (dateHeader) sections.push(dateHeader);
 
-    // Sort categories in preferred display order.
-    const sortedCategories = sortCategories([...all_items.keys()]);
-
-    for (const category of sortedCategories) {
-        const items = all_items.get(category);
+    for (const [category, items] of all_items.entries()) {
         if (!items || items.size === 0) continue;
 
         const section = formatCategorySection(category, items, options.language, options.time_zone);
