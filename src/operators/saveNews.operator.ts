@@ -30,7 +30,12 @@ export default async function saveNews({ inputs, requires, options }: OperatorAr
 
         const save_promises: Promise<void>[] = Array.from(save_input_items.values(), async (items: Map<string, BriefNewsLike>) => {
             const entities = [...items.values()].map(item => repository.create(item));
-            await repository.save(entities);
+            if (entities.length > 0) {
+                await repository.upsert(entities, {
+                    conflictPaths: ["hash_id"],
+                    skipUpdateIfNoValuesChanged: true
+                });
+            }
         });
         await Promise.all(save_promises);
 

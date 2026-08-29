@@ -167,22 +167,6 @@ export class LightDag {
             // Map schema input names to global DAG task names and await them.
             const schema_input_names = Object.keys(op.input_schema.shape);
             const global_input_names = schema_input_names.map(n => op.input_map?.[n] ?? n);
-
-            const input_results = await Promise.all(
-                global_input_names.map(global_name => {
-                    const task = tasks.get(global_name);
-                    if (!task)
-                        throw new Error(`Task "${global_name}" not found for node "${name}"`);
-                    return task;
-                })
-            );
-            const inputs: Record<string, unknown> = {};
-            for (let i = 0; i < schema_input_names.length; i++) {
-                inputs[schema_input_names[i]!] = input_results[i];
-            }
-            this.log(`[${name}] START — inputs resolved: [${global_input_names.join(", ")}]`);
-            const parsed_inputs = op.input_schema.parse(inputs);
-
             // Remap context and options from global keys to schema keys,
             // then validate with the operator's schemas.
             const op_requires: Record<string, unknown> = {};
@@ -200,6 +184,23 @@ export class LightDag {
 
             const parsed_requires = op.requires_schema.parse(op_requires);
             const parsed_options = op.options_schema.parse(op_options);
+
+            const input_results = await Promise.all(
+                global_input_names.map(global_name => {
+                    const task = tasks.get(global_name);
+                    if (!task)
+                        throw new Error(`Task "${global_name}" not found for node "${name}"`);
+                    return task;
+                })
+            );
+            const inputs: Record<string, unknown> = {};
+            for (let i = 0; i < schema_input_names.length; i++) {
+                inputs[schema_input_names[i]!] = input_results[i];
+            }
+            this.log(`[${name}] START — inputs resolved: [${global_input_names.join(", ")}]`);
+            const parsed_inputs = op.input_schema.parse(inputs);
+
+
             let op_output: OperatorOutput;
             const op_input_arg: OperatorArgs = { inputs: parsed_inputs, requires: parsed_requires, options: parsed_options };
             if (typeof op.exec === "string") {
